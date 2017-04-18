@@ -1,0 +1,39 @@
+[bb-server-list-item],
+[bb-queue-server] {
+
+  a {
+    display: inline-block;
+    float: left;
+  }
+
+  .btn {
+    margin-top: 12px;
+  }
+  .btn-group {
+    margin-right: 6px;
+  }
+
+  .info-box-content {
+    .server-info {
+      min-height: 50px;
+    }
+  }
+
+  .loader {
+    height: 100px;
+    width: 100px;
+  }
+
+  .loader.small-loader {
+    height: 60px;
+    width: 60px;
+    background-size: 60px 60px;
+  }
+
+  .box-body {
+    display: block;
+  }
+
+}
+
+
