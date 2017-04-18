@@ -1,844 +1,1501 @@
-(function() {
-  'use strict';
-  var queueapp;
+'use strict';
 
-  queueapp = angular.module('BBQueue', ['BB', 'BBAdmin.Services', 'BBAdmin.Directives', 'BBQueue.Services', 'BBQueue.Directives', 'BBQueue.Controllers', 'trNgGrid', 'ngDragDrop', 'pusher-angular']);
+angular.module('BBQueue.controllers', []);
+angular.module('BBQueue.services', []);
+angular.module('BBQueue.directives', []);
+angular.module('BBQueue.translations', []);
 
-  angular.module('BBQueue.Directives', ['timer']);
+angular.module('BBQueue', ['BBQueue.controllers', 'BBQueue.services', 'BBQueue.directives', 'BBQueue.translations', 'ngDragDrop', 'timer']);
+'use strict';
 
-  angular.module('BBQueue.Controllers', []);
+angular.module('BBQueue').config(function (AdminCoreOptionsProvider) {
+    'ngInject';
 
-  angular.module('BBQueue.Services', ['ngResource', 'ngSanitize', 'ngLocalData']);
+    AdminCoreOptionsProvider.setOption('side_navigation', [{
+        group_name: 'SIDE_NAV_QUEUING',
+        items: ['queue']
+    }, {
+        group_name: 'SIDE_NAV_BOOKINGS',
+        items: ['calendar', 'clients']
+    }, {
+        group_name: 'SIDE_NAV_CONFIG',
+        items: ['config-iframe', 'publish-iframe', 'settings-iframe']
+    }]);
+});
+'use strict';
 
-  angular.module('BBQueueMockE2E', ['BBQueue', 'BBAdminMockE2E']);
+angular.module('BBQueue').run(function (RuntimeStates, AdminQueueOptions, SideNavigationPartials) {
+    if (AdminQueueOptions.use_default_states) {
+        RuntimeStates.state('queue', {
+            parent: AdminQueueOptions.parent_state,
+            url: "queue",
+            resolve: {
+                company: function company(user) {
+                    return user.$getCompany();
+                },
+                services: function services(company) {
+                    return company.$getServices();
+                },
+                people: function people(company) {
+                    return company.$getPeople();
+                },
+                bookings: function bookings(company, BBModel) {
+                    var params = {
+                        company: company,
+                        start_date: moment().format('YYYY-MM-DD'),
+                        end_date: moment().format('YYYY-MM-DD'),
+                        start_time: moment().format('HH:mm'),
+                        skip_cache: false
+                    };
+                    return BBModel.Admin.Booking.$query(params);
+                }
+            },
+            controller: function controller($scope, company, services, people, bookings, BBModel) {
+                $scope.bookings = bookings;
+                $scope.services = services;
+                $scope.people = people;
 
-  queueapp.run(function($rootScope, $log, DebugUtilsService, FormDataStoreService, $bbug, $document, $sessionStorage, AppConfig, AdminLoginService) {});
+                var refreshBookings = function refreshBookings() {
+                    var params = {
+                        company: company,
+                        start_date: moment().format('YYYY-MM-DD'),
+                        end_date: moment().format('YYYY-MM-DD'),
+                        start_time: moment().format('HH:mm'),
+                        skip_cache: false
+                    };
+                    BBModel.Admin.Booking.$query(params).then(function (bookings) {
+                        $scope.bookings = bookings;
+                        $scope.$broadcast('updateBookings', bookings);
+                    });
+                };
 
-}).call(this);
+                var pusherSubscribe = function pusherSubscribe() {
+                    var pusher_channel = company.getPusherChannel('bookings');
+                    if (pusher_channel) {
+                        pusher_channel.bind('create', refreshBookings);
+                        pusher_channel.bind('update', refreshBookings);
+                        pusher_channel.bind('destroy', refreshBookings);
+                    }
+                };
 
-(function() {
-  angular.module('BBQueue').controller('bbQueueDashboardController', function($scope, $log, AdminServiceService, AdminQueuerService, ModalForm, BBModel, $interval, $sessionStorage) {
+                pusherSubscribe();
+            },
+
+            templateUrl: "queue/index.html"
+        }).state('queue.concierge', {
+            parent: 'queue',
+            url: "/concierge",
+            templateUrl: "queue/concierge.html",
+            controller: 'QueueConciergePageCtrl'
+        }).state('queue.server', {
+            parent: 'queue',
+            url: "/server/:id",
+            resolve: {
+                person: function person(people, $stateParams) {
+                    var person = _.findWhere(people, {
+                        id: parseInt($stateParams.id),
+                        queuing_disabled: false
+                    });
+                    return person.$refetch();
+                }
+            },
+            templateUrl: "queue/server.html",
+            controller: function controller($scope, $stateParams, person) {
+                $scope.person = person;
+            }
+        });
+    }
+
+    if (AdminQueueOptions.show_in_navigation) {
+        SideNavigationPartials.addPartialTemplate('queue', 'queue/nav.html');
+    }
+});
+
+angular.module('BBQueue').run(function ($injector, BBModel, $translate) {
+    var models = ['Queuer', 'ClientQueue'];
+
+    var _iteratorNormalCompletion = true;
+    var _didIteratorError = false;
+    var _iteratorError = undefined;
+
+    try {
+        for (var _iterator = Array.from(models)[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+            var model = _step.value;
+
+            BBModel['Admin'][model] = $injector.get('Admin' + model + 'Model');
+        }
+    } catch (err) {
+        _didIteratorError = true;
+        _iteratorError = err;
+    } finally {
+        try {
+            if (!_iteratorNormalCompletion && _iterator.return) {
+                _iterator.return();
+            }
+        } finally {
+            if (_didIteratorError) {
+                throw _iteratorError;
+            }
+        }
+    }
+});
+'use strict';
+
+/*
+ * @ngdoc controller
+ * @name BBQueue.controllers.controller:QueueConciergePageCtrl
+ *
+ * @description
+ * Controller for the queue concierge page
+ */
+angular.module('BBQueue.controllers').controller('QueueConciergePageCtrl', ['$scope', '$state', function ($scope, $state) {}]);
+'use strict';
+
+var QueueServerController = function QueueServerController($scope, $log, AdminQueueService, ModalForm, BBModel, CheckSchema, $uibModal, AdminPersonService, $q, AdminQueuerService, Dialog, $translate) {
+
+    var init = function init() {
+        $scope.loadingServer = false;
+        var bookings = _.filter($scope.bookings.items, function (booking) {
+            return booking.person_id == $scope.person.id;
+        });
+        if (bookings && bookings.length > 0) {
+            $scope.person.next_booking = bookings[0];
+        } else {
+            $scope.person.next_booking = null;
+        }
+    };
+
+    $scope.setAttendance = function (person, status, duration) {
+        $scope.loadingServer = true;
+        person.setAttendance(status, duration).then(function (person) {
+            $scope.loadingServer = false;
+        }, function (err) {
+            $log.error(err.data);
+            $scope.loadingServer = false;
+        });
+    };
+
+    var upcomingBookingCheck = function upcomingBookingCheck(person) {
+        return person.next_booking && person.next_booking.start.isBefore(moment().add(1, 'hour'));
+    };
+
+    $scope.startServingQueuer = function (person, queuer) {
+        $scope.loadingServer = true;
+        if (upcomingBookingCheck(person)) {
+            Dialog.confirm({
+                title: $translate.instant('ADMIN_DASHBOARD.QUEUE_PAGE.NEXT_BOOKING_DIALOG_HEADING'),
+                body: $translate.instant('ADMIN_DASHBOARD.QUEUE_PAGE.NEXT_BOOKING_DIALOG_BODY', {
+                    name: person.name, time: person.next_booking.start.format('HH:mm')
+                }),
+                success: function success() {
+                    person.startServing(queuer).then(function () {
+                        if ($scope.selectQueuer) $scope.selectQueuer(null);
+                        $scope.getQueuers();
+                        $scope.loadingServer = false;
+                    });
+                },
+                fail: function fail() {
+                    $scope.loadingServer = false;
+                }
+            });
+        } else {
+            person.startServing(queuer).then(function () {
+                if ($scope.selectQueuer) $scope.selectQueuer(null);
+                $scope.getQueuers();
+                $scope.loadingServer = false;
+            });
+        }
+    };
+
+    $scope.finishServingQueuer = function (options) {
+        var person = options.person;
+        var serving = person.serving;
+
+        $scope.loadingServer = true;
+        if (options.outcomes) {
+            serving.$get('booking').then(function (booking) {
+                booking = new BBModel.Admin.Booking(booking);
+                booking.current_multi_status = options.status;
+                if (booking.$has('edit')) {
+                    finishServingOutcome(person, booking);
+                } else {
+                    $scope.loadingServer = false;
+                }
+            });
+        } else if (options.status) {
+            person.finishServing().then(function () {
+                serving.$get('booking').then(function (booking) {
+                    booking = new BBModel.Admin.Booking(booking);
+                    booking.current_multi_status = options.status;
+                    booking.$update(booking).then(function (res) {
+                        $scope.loadingServer = false;
+                    });
+                });
+            });
+        } else {
+            $scope.loadingServer = false;
+        }
+    };
+
+    var finishServingOutcome = function finishServingOutcome(person, booking) {
+        var modalInstance = $uibModal.open({
+            templateUrl: 'queue/finish_serving_outcome.html',
+            resolve: {
+                person: person,
+                booking: booking,
+                schema: function schema() {
+                    var defer = $q.defer();
+                    booking.$get('edit').then(function (schema) {
+                        var form = _.reject(schema.form, function (x) {
+                            return x.type === 'submit';
+                        });
+                        form[0].tabs = [form[0].tabs[form[0].tabs.length - 1]];
+                        schema.schem = CheckSchema(schema.schema);
+                        defer.resolve(schema);
+                    }, function () {
+                        defer.reject();
+                    });
+                    return defer.promise;
+                }
+            },
+            controller: function controller($scope, $uibModalInstance, schema, booking, person) {
+
+                $scope.person = person;
+
+                $scope.form_model = booking;
+
+                $scope.form = schema.form;
+
+                $scope.schema = schema.schema;
+
+                $scope.submit = function () {
+                    return $uibModalInstance.close();
+                };
+
+                $scope.close = function () {
+                    return $uibModalInstance.dismiss('cancel');
+                };
+            }
+        });
+
+        modalInstance.result.then(function () {
+            booking.$update(booking).then(function () {
+                person.finishServing().finally(function () {
+                    person.attendance_status = 1;
+                    $scope.loadingServer = false;
+                });
+            });
+        }, function () {
+            $scope.loadingServer = false;
+        });
+    };
+
+    $scope.updateQueuer = function () {
+        $scope.person.$get('queuers').then(function (collection) {
+            collection.$get('queuers').then(function (queuers) {
+                queuers = _.map(queuers, function (q) {
+                    return new BBModel.Admin.Queuer(q);
+                });
+                $scope.person.serving = null;
+                var queuer = _.find(queuers, function (queuer) {
+                    return queuer.$has('person') && queuer.$href('person') == $scope.person.$href('self');
+                });
+                $scope.person.serving = queuer;
+            });
+        });
+    };
+
+    $scope.extendAppointment = function (mins) {
+        $scope.loadingServer = true;
+        $scope.person.serving.extendAppointment(mins).then(function (queuer) {
+            $scope.person.serving = queuer;
+            $scope.loadingServer = false;
+        });
+    };
+
+    $scope.$on('updateBookings', function () {
+        return init();
+    });
+
+    init();
+};
+
+angular.module('BBQueue.controllers').controller('bbQueueServerController', QueueServerController);
+'use strict';
+
+angular.module('BBQueue.directives').directive('countdown', function () {
+
+    var controller = function controller($scope) {
+
+        $scope.$watch('$$value$$', function (value) {
+            if (value != null) {
+                return $scope.updateModel(value);
+            }
+        });
+    };
+
+    var link = function link(scope, element, attrs, ngModel) {
+
+        ngModel.$render = function () {
+            if (ngModel.$viewValue) {
+                return scope.$$value$$ = ngModel.$viewValue;
+            }
+        };
+
+        scope.updateModel = function (value) {
+            ngModel.$setViewValue(value);
+
+            var secs = parseInt((value % 60).toFixed(0));
+            var mins = parseInt((value / 60).toFixed(0));
+
+            if (mins > 1) {
+                return scope.due = mins + ' Mins';
+            } else if (mins === 1) {
+                return scope.due = "1 Min";
+            } else if (mins === 0 && secs > 10) {
+                return scope.due = "< 1 Min";
+            } else {
+                return scope.due = "Next Up";
+            }
+        };
+
+        return scope.due = "";
+    };
+
+    return {
+        require: 'ngModel',
+        link: link,
+        controller: controller,
+        scope: {
+            min: '@'
+        },
+        template: '{{due}}'
+    };
+});
+'use strict';
+
+angular.module('BBQueue.directives').directive('bbQueueServer', function (PusherQueue) {
+    return {
+        controller: 'bbQueueServerController',
+        link: function link(scope, element, attrs) {
+            PusherQueue.subscribe(scope.bb.company);
+            PusherQueue.channel.bind('notification', function (data) {
+                scope.updateQueuer();
+            });
+            scope.updateQueuer();
+        }
+    };
+});
+'use strict';
+
+angular.module('BBQueue.directives').directive('bbServerListItem', function () {
+    return {
+        controller: 'bbQueueServerController',
+        templateUrl: 'queue/queue_server_list_item.html'
+    };
+});
+"use strict";
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+angular.module('BB.Models').factory("AdminClientQueueModel", function ($q, BBModel, BaseModel) {
+
+    return function (_BaseModel) {
+        _inherits(Admin_ClientQueue, _BaseModel);
+
+        function Admin_ClientQueue() {
+            _classCallCheck(this, Admin_ClientQueue);
+
+            return _possibleConstructorReturn(this, _BaseModel.apply(this, arguments));
+        }
+
+        return Admin_ClientQueue;
+    }(BaseModel);
+});
+'use strict';
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+angular.module('BB.Models').factory("AdminQueuerModel", function ($q, BBModel, BaseModel) {
+
+    return function (_BaseModel) {
+        _inherits(Admin_Queuer, _BaseModel);
+
+        function Admin_Queuer(data) {
+            _classCallCheck(this, Admin_Queuer);
+
+            var _this = _possibleConstructorReturn(this, _BaseModel.call(this, data));
+
+            _this.start = moment.parseZone(_this.start);
+            _this.due = moment.parseZone(_this.due);
+            _this.end = moment(_this.start).add(_this.duration, 'minutes');
+            _this.created_at = moment.parseZone(_this.created_at);
+            return _this;
+        }
+
+        Admin_Queuer.prototype.remaining = function remaining() {
+            var d = this.due.diff(moment.utc(), 'seconds');
+            this.remaining_unsigned = Math.abs(d);
+            return this.remaining_signed = d;
+        };
+
+        Admin_Queuer.prototype.getName = function getName() {
+            var str = "";
+            if (this.first_name) {
+                str += this.first_name;
+            }
+            if (str.length > 0 && this.last_name) {
+                str += " ";
+            }
+            if (this.last_name) {
+                str += this.last_name;
+            }
+            return str;
+        };
+
+        /***
+         * @ngdoc method
+         * @name fullMobile
+         * @methodOf BB.Models:Address
+         * @description
+         * Full mobile phone number of the client
+         *
+         * @returns {object} The returned full mobile number
+         */
+
+
+        Admin_Queuer.prototype.fullMobile = function fullMobile() {
+            if (!this.mobile) {
+                return;
+            }
+            if (!this.mobile_prefix) {
+                return this.mobile;
+            }
+            return '+' + this.mobile_prefix + (this.mobile.substr(0, 1) === '0' ? this.mobile.substr(1) : this.mobile);
+        };
+
+        Admin_Queuer.prototype.startServing = function startServing(person) {
+            var _this2 = this;
+
+            var defer = $q.defer();
+            if (this.$has('start_serving')) {
+                console.log('start serving url ', this.$href('start_serving'));
+                person.$flush('self');
+                this.$post('start_serving', { person_id: person.id }).then(function (q) {
+                    person.$get('self').then(function (p) {
+                        return person.updateModel(p);
+                    });
+                    _this2.updateModel(q);
+                    return defer.resolve(_this2);
+                }, function (err) {
+                    return defer.reject(err);
+                });
+            } else {
+                defer.reject('start_serving link not available');
+            }
+            return defer.promise;
+        };
+
+        Admin_Queuer.prototype.finishServing = function finishServing() {
+            var _this3 = this;
+
+            var defer = $q.defer();
+            if (this.$has('finish_serving')) {
+                this.$post('finish_serving').then(function (q) {
+                    _this3.updateModel(q);
+                    return defer.resolve(_this3);
+                }, function (err) {
+                    return defer.reject(err);
+                });
+            } else {
+                defer.reject('finish_serving link not available');
+            }
+            return defer.promise;
+        };
+
+        Admin_Queuer.prototype.extendAppointment = function extendAppointment(minutes) {
+            var _this4 = this;
+
+            var new_duration = void 0;
+            var defer = $q.defer();
+            if (this.end.isBefore(moment())) {
+                var d = moment.duration(moment().diff(this.start));
+                new_duration = d.as('minutes') + minutes;
+            } else {
+                new_duration = this.duration + minutes;
+            }
+            this.$put('self', {}, { duration: new_duration }).then(function (q) {
+                _this4.updateModel(q);
+                _this4.end = moment(_this4.start).add(_this4.duration, 'minutes');
+                return defer.resolve(_this4);
+            }, function (err) {
+                return defer.reject(err);
+            });
+            return defer.promise;
+        };
+
+        Admin_Queuer.prototype.$refetch = function $refetch() {
+            var _this5 = this;
+
+            var defer = $q.defer();
+            this.$flush('self');
+            this.$get('self').then(function (res) {
+                _this5.constructor(res);
+                return defer.resolve(_this5);
+            }, function (err) {
+                return defer.reject(err);
+            });
+            return defer.promise;
+        };
+
+        Admin_Queuer.prototype.$delete = function $delete() {
+            var _this6 = this;
+
+            var defer = $q.defer();
+            this.$flush('self');
+            this.$del('self').then(function (res) {
+                _this6.constructor(res);
+                return defer.resolve(_this6);
+            }, function (err) {
+                return defer.reject(err);
+            });
+            return defer.promise;
+        };
+
+        return Admin_Queuer;
+    }(BaseModel);
+});
+'use strict';
+
+angular.module('BBQueue.services').factory('AdminQueueService', function ($q, BBModel) {
+    return {
+        query: function query(params) {
+            var defer = $q.defer();
+            params.company.$get('client_queues').then(function (collection) {
+                return collection.$get('client_queues').then(function (client_queues) {
+                    var models = Array.from(client_queues).map(function (q) {
+                        return new BBModel.Admin.ClientQueue(q);
+                    });
+                    return defer.resolve(models);
+                }, function (err) {
+                    return defer.reject(err);
+                });
+            }, function (err) {
+                return defer.reject(err);
+            });
+            return defer.promise;
+        }
+    };
+});
+'use strict';
+
+/*
+ * @ngdoc service
+ * @name BBQueue.services.service:AdminQueueOptions
+ *
+ * @description
+ * Returns a set of admin queueing configuration options
+ */
+
+/*
+ * @ngdoc service
+ * @name BBQueue.services.service:AdminQueueOptionsProvider
+ *
+ * @description
+ * Provider
+ *
+ * @example
+ <example>
+ angular.module('ExampleModule').config ['AdminQueueOptionsProvider', (AdminQueueOptionsProvider) ->
+ AdminQueueOptionsProvider.setOption('option', 'value')
+ ]
+ </example>
+ */
+angular.module('BBQueue.services').provider('AdminQueueOptions', function () {
+    var options = {
+        use_default_states: true,
+        show_in_navigation: true,
+        parent_state: 'root'
+    };
+
+    this.setOption = function (option, value) {
+        if (options.hasOwnProperty(option)) {
+            options[option] = value;
+        }
+    };
+
+    this.getOption = function (option) {
+        if (options.hasOwnProperty(option)) {
+            return options[option];
+        }
+    };
+    this.$get = function () {
+        return options;
+    };
+});
+'use strict';
+
+angular.module('BBQueue.services').factory('AdminQueuerService', function ($q, BBModel) {
+    return {
+        query: function query(params) {
+            var defer = $q.defer();
+            params.company.$flush('queuers');
+            params.company.$get('queuers').then(function (collection) {
+                return collection.$get('queuers').then(function (queuers) {
+                    var models = Array.from(queuers).map(function (q) {
+                        return new BBModel.Admin.Queuer(q);
+                    });
+                    return defer.resolve(models);
+                }, function (err) {
+                    return defer.reject(err);
+                });
+            }, function (err) {
+                return defer.reject(err);
+            });
+            return defer.promise;
+        }
+    };
+});
+'use strict';
+
+// THIS IS CRUFTY AND SHOULD BE REMOVE WITH AN API UPDATE THAT TIDIES UP THE SCEMA RESPONE
+// fix the issues we have with the the sub client and question blocks being in doted notation, and
+// not in child objects
+angular.module('BBQueue.services').service('CheckSchema', function ($q, BBModel) {
+    return function (schema) {
+        for (var k in schema.properties) {
+            var v = schema.properties[k];
+            var vals = k.split(".");
+            if (vals[0] === "questions" && vals.length > 1) {
+                if (!schema.properties.questions) {
+                    schema.properties.questions = { type: "object", properties: {} };
+                }
+                if (!schema.properties.questions.properties[vals[1]]) {
+                    schema.properties.questions.properties[vals[1]] = {
+                        type: "object",
+                        properties: { answer: v }
+                    };
+                }
+            }
+            if (vals[0] === "client" && vals.length > 2) {
+                if (!schema.properties.client) {
+                    schema.properties.client = {
+                        type: "object",
+                        properties: { q: { type: "object", properties: {} } }
+                    };
+                }
+                if (schema.properties.client.properties) {
+                    if (!schema.properties.client.properties.q.properties[vals[2]]) {
+                        schema.properties.client.properties.q.properties[vals[2]] = {
+                            type: "object",
+                            properties: { answer: v }
+                        };
+                    }
+                }
+            }
+        }
+        return schema;
+    };
+});
+'use strict';
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+angular.module('BBQueue.services').factory('PusherQueue', function ($sessionStorage, AppConfig) {
+    return function () {
+        function PusherQueue() {
+            _classCallCheck(this, PusherQueue);
+        }
+
+        PusherQueue.subscribe = function subscribe(company) {
+            if (company != null && typeof Pusher !== 'undefined' && Pusher !== null) {
+                if (this.client == null) {
+                    this.pusher = new Pusher('c8d8cea659cc46060608', {
+                        authEndpoint: '/api/v1/push/' + company.id + '/pusher.json',
+                        auth: {
+                            headers: {
+                                'App-Id': AppConfig['App-Id'],
+                                'App-Key': AppConfig['App-Key'],
+                                'Auth-Token': $sessionStorage.getItem('auth_token')
+                            }
+                        }
+                    });
+                    return this.channel = this.pusher.subscribe('mobile-queue-' + company.id);
+                }
+            }
+        };
+
+        return PusherQueue;
+    }();
+});
+'use strict';
+
+/*
+* @ngdoc overview
+* @name BBQueue.translations
+*
+* @description
+* Translations for the queue people module
+*/
+angular.module('BBQueue.translations').config(['$translateProvider', function ($translateProvider) {
+    return $translateProvider.translations('en', {
+        'SIDE_NAV_QUEUING': 'QUEUING',
+        'ADMIN_DASHBOARD': {
+            'SIDE_NAV': {
+                'QUEUE_PAGE': {
+                    'QUEUE': 'Concierge',
+                    'REPORT': 'Queue Reports',
+                    'BOOKING_REPORT': 'Booking Reports',
+                    'PERF_REPORT': 'Performance Reports',
+                    'MAP_REPORT': 'Map Reports',
+                    'LIST': 'Queue Display'
+                }
+            },
+            'QUEUE_PAGE': {
+                'PEOPLE': 'Colleagues',
+                'PERSON': 'Colleague',
+                'DATETIME': 'Date Time',
+                'DETAILS': 'Details',
+                'CLIENT': 'Client',
+                'NAME': 'Name',
+                'EMAIL': 'Email',
+                'MOBILE': 'Mobile',
+                'PHONE': 'Phone',
+                'ACTIONS': 'Actions',
+                'EDIT': 'Edit',
+                'ABOUT': 'About',
+                'ADDRESS': 'Address',
+                'UPCOMING_BOOKINGS': 'Upcoming Bookings',
+                'PAST_BOOKINGS': 'Past Bookings',
+                'NEXT_BOOKING_DIALOG_HEADING': 'Upcoming Appointment',
+                'NEXT_BOOKING_DIALOG_BODY': '{{name}} has an appointment at {{time}}. Are you sure they want to serve another customer beforehand?'
+            }
+        }
+    });
+}]);
+'use strict';
+
+var AddQueueCustomerController = function AddQueueCustomerController($scope, $log, AdminServiceService, AdminQueuerService, ModalForm, BBModel, $interval, $sessionStorage, $uibModal, $q, AdminBookingPopup) {
+
+    var addQueuer = function addQueuer(form) {
+        var defer = $q.defer();
+        var service = form.service;
+        var person = form.server;
+        $scope.new_queuer.service_id = service.id;
+        service.$post('queuers', {}, $scope.new_queuer).then(function (response) {
+            var queuer = new BBModel.Admin.Queuer(response);
+            if (person) {
+                queuer.startServing(person).then(function () {
+                    defer.resolve();
+                }, function () {
+                    defer.reject();
+                });
+            } else {
+                defer.resolve();
+            }
+        });
+        return defer.promise;
+    };
+
+    var resetQueuer = function resetQueuer() {
+        $scope.new_queuer = {};
+        $scope.loading = false;
+    };
+
+    $scope.addToQueue = function () {
+        $scope.loading = true;
+        var modalInstance = $uibModal.open({
+            templateUrl: 'queue/pick_a_service.html',
+            scope: $scope,
+            controller: function controller($scope, $uibModalInstance) {
+
+                $scope.dismiss = function () {
+                    return $uibModalInstance.dismiss('cancel');
+                };
+
+                $scope.submit = function (form) {
+                    return $uibModalInstance.close(form);
+                };
+            }
+        });
+
+        modalInstance.result.then(addQueuer).then(resetQueuer).finally(function () {
+            return $scope.loading = false;
+        });
+    };
+
+    $scope.availableServers = function () {
+        return _.filter($scope.servers, function (server) {
+            return server.attendance_status == 1;
+        });
+    };
+
+    $scope.serveCustomerNow = function () {
+        $scope.loading = true;
+        var modalInstance = $uibModal.open({
+            templateUrl: 'queue/serve_now.html',
+            resolve: {
+                services: function services() {
+                    return $scope.services;
+                },
+                servers: function servers() {
+                    return $scope.availableServers();
+                }
+            },
+            controller: function controller($scope, $uibModalInstance, services, servers) {
+
+                $scope.form = {};
+
+                $scope.services = services;
+
+                $scope.servers = servers;
+
+                $scope.dismiss = function () {
+                    return $uibModalInstance.dismiss('cancel');
+                };
+
+                $scope.submit = function (form) {
+                    return $uibModalInstance.close(form);
+                };
+            }
+        });
+
+        modalInstance.result.then(addQueuer).then(resetQueuer).finally(function () {
+            return $scope.loading = false;
+        });
+    };
+
+    $scope.makeAppointment = function (options) {
+        var defaultOptions = {
+            item_defaults: {
+                pick_first_time: true,
+                merge_people: true,
+                merge_resources: true,
+                date: moment().format('YYYY-MM-DD')
+            },
+            on_conflict: "cancel()",
+            company_id: $scope.company.id
+        };
+
+        options = _.extend(defaultOptions, options);
+
+        var popup = AdminBookingPopup.open(options);
+
+        popup.result.finally(resetQueuer);
+    };
+};
+
+angular.module('BBQueue.controllers').controller('bbQueueAddCustomer', AddQueueCustomerController);
+'use strict';
+
+angular.module('BBQueue.directives').directive('bbQueueAddCustomer', function () {
+    return {
+        controller: 'bbQueueAddCustomer',
+        templateUrl: 'queue/add_customer.html',
+        scope: {
+            services: '=',
+            servers: '=',
+            company: '='
+        }
+    };
+});
+'use strict';
+
+var QueueDashboardController = function QueueDashboardController($scope, $log, AdminServiceService, AdminQueuerService, ModalForm, BBModel, $interval, $sessionStorage, $uibModal, $q, AdminPersonService) {
+
     $scope.loading = true;
     $scope.waiting_for_queuers = false;
     $scope.queuers = [];
     $scope.new_queuer = {};
-    $scope.getSetup = function() {
-      var params;
-      params = {
-        company: $scope.company
-      };
-      AdminServiceService.query(params).then(function(services) {
-        var i, len, service;
-        $scope.services = [];
-        for (i = 0, len = services.length; i < len; i++) {
-          service = services[i];
-          if (!service.queuing_disabled) {
-            $scope.services.push(service);
-          }
+
+    // this is used to retrigger a scope check that will update service time
+    $interval(function () {
+        if ($scope.queuers) {
+            return Array.from($scope.queuers).map(function (queuer) {
+                return queuer.remaining();
+            });
         }
-        return $scope.loading = false;
-      }, function(err) {
-        $log.error(err.data);
-        return $scope.loading = false;
-      });
-      $scope.pusherSubscribe();
-      return $scope.getQueuers();
-    };
-    $scope.getQueuers = function() {
-      var params;
-      if ($scope.waiting_for_queuers) {
-        return;
-      }
-      $scope.waiting_for_queuers = true;
-      params = {
-        company: $scope.company
-      };
-      return AdminQueuerService.query(params).then(function(queuers) {
-        var i, len, queuer;
-        $scope.queuers = queuers;
-        $scope.waiting_queuers = [];
-        for (i = 0, len = queuers.length; i < len; i++) {
-          queuer = queuers[i];
-          queuer.remaining();
-          if (queuer.position > 0) {
-            $scope.waiting_queuers.push(queuer);
-          }
-        }
-        $scope.loading = false;
-        return $scope.waiting_for_queuers = false;
-      }, function(err) {
-        $log.error(err.data);
-        $scope.loading = false;
-        return $scope.waiting_for_queuers = false;
-      });
-    };
-    $scope.overTrash = function(event, ui, set) {
-      return $scope.$apply(function() {
-        return $scope.trash_hover = set;
-      });
-    };
-    $scope.hoverOver = function(event, ui, obj, set) {
-      console.log(event, ui, obj, set);
-      return $scope.$apply(function() {
-        return obj.hover = set;
-      });
-    };
-    $scope.dropQueuer = function(event, ui, server, trash) {
-      if ($scope.drag_queuer) {
-        if (trash) {
-          $scope.trash_hover = false;
-          $scope.drag_queuer.$del('self').then(function(queuer) {});
-        }
-        if (server) {
-          return $scope.drag_queuer.startServing(server).then(function() {});
-        }
-      }
-    };
-    $scope.selectQueuer = function(queuer) {
-      if ($scope.selected_queuer && $scope.selected_queuer === queuer) {
-        return $scope.selected_queuer = null;
-      } else {
-        return $scope.selected_queuer = queuer;
-      }
-    };
-    $scope.selectDragQueuer = function(queuer) {
-      return $scope.drag_queuer = queuer;
-    };
-    $scope.addQueuer = function(service) {
-      $scope.new_queuer.service_id = service.id;
-      return service.$post('queuers', {}, $scope.new_queuer).then(function(queuer) {});
-    };
-    $scope.pusherSubscribe = (function(_this) {
-      return function() {
-        var channelName, pusherEvent;
-        if (($scope.company != null) && (typeof Pusher !== "undefined" && Pusher !== null)) {
-          if ($scope.pusher == null) {
-            $scope.pusher = new Pusher('c8d8cea659cc46060608', {
-              authEndpoint: "/api/v1/push/" + $scope.company.id + "/pusher.json",
-              auth: {
-                headers: {
-                  'App-Id': 'f6b16c23',
-                  'App-Key': 'f0bc4f65f4fbfe7b4b3b7264b655f5eb',
-                  'Auth-Token': $sessionStorage.getItem('auth_token')
+    }, 5000);
+
+    $scope.getSetup = function () {
+        var params = { company: $scope.company };
+        AdminServiceService.query(params).then(function (services) {
+            $scope.services = [];
+            var _iteratorNormalCompletion = true;
+            var _didIteratorError = false;
+            var _iteratorError = undefined;
+
+            try {
+                for (var _iterator = Array.from(services)[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+                    var service = _step.value;
+
+                    if (!service.queuing_disabled) {
+                        $scope.services.push(service);
+                    }
                 }
-              }
+            } catch (err) {
+                _didIteratorError = true;
+                _iteratorError = err;
+            } finally {
+                try {
+                    if (!_iteratorNormalCompletion && _iterator.return) {
+                        _iterator.return();
+                    }
+                } finally {
+                    if (_didIteratorError) {
+                        throw _iteratorError;
+                    }
+                }
+            }
+
+            return $scope.loading = false;
+        }, function (err) {
+            $log.error(err.data);
+            return $scope.loading = false;
+        });
+    };
+
+    $scope.getQueuers = function () {
+        if ($scope.waiting_for_queuers) {
+            return;
+        }
+        $scope.waiting_for_queuers = true;
+        var params = { company: $scope.company };
+        return AdminQueuerService.query(params).then(function (queuers) {
+            $scope.queuers = queuers;
+            $scope.waiting_queuers = [];
+            var _iteratorNormalCompletion2 = true;
+            var _didIteratorError2 = false;
+            var _iteratorError2 = undefined;
+
+            try {
+                for (var _iterator2 = Array.from(queuers)[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+                    var queuer = _step2.value;
+
+                    queuer.remaining();
+                    if (queuer.position > 0) {
+                        $scope.waiting_queuers.push(queuer);
+                    }
+                }
+            } catch (err) {
+                _didIteratorError2 = true;
+                _iteratorError2 = err;
+            } finally {
+                try {
+                    if (!_iteratorNormalCompletion2 && _iterator2.return) {
+                        _iterator2.return();
+                    }
+                } finally {
+                    if (_didIteratorError2) {
+                        throw _iteratorError2;
+                    }
+                }
+            }
+
+            $scope.waiting_queuers = _.sortBy($scope.waiting_queuers, function (x) {
+                return x.position;
             });
-          }
-          channelName = "mobile-queue-" + $scope.company.id;
-          if ($scope.pusher.channel(channelName) == null) {
-            $scope.pusher_channel = $scope.pusher.subscribe(channelName);
-            pusherEvent = function(res) {
-              return $scope.getQueuers();
-            };
-            return $scope.pusher_channel.bind('notification', pusherEvent);
-          }
-        }
-      };
-    })(this);
-    return $interval(function() {
-      var i, len, queuer, ref, results;
-      if ($scope.queuers) {
-        ref = $scope.queuers;
-        results = [];
-        for (i = 0, len = ref.length; i < len; i++) {
-          queuer = ref[i];
-          results.push(queuer.remaining());
-        }
-        return results;
-      }
-    }, 5000);
-  });
 
-}).call(this);
-
-(function() {
-  angular.module('BBQueue').controller('bbQueueServers', function($scope, $log, AdminQueueService, ModalForm, AdminPersonService) {
-    $scope.loading = true;
-    $scope.getServers = function() {
-      return AdminPersonService.query({
-        company: $scope.company
-      }).then(function(people) {
-        var i, len, person, ref;
-        $scope.all_people = people;
-        $scope.servers = [];
-        ref = $scope.all_people;
-        for (i = 0, len = ref.length; i < len; i++) {
-          person = ref[i];
-          if (!person.queuing_disabled) {
-            $scope.servers.push(person);
-          }
-        }
-        $scope.loading = false;
-        return $scope.updateQueuers();
-      }, function(err) {
-        $log.error(err.data);
-        return $scope.loading = false;
-      });
-    };
-    $scope.setAttendance = function(person, status) {
-      $scope.loading = true;
-      return person.setAttendance(status).then(function(person) {
-        return $scope.loading = false;
-      }, function(err) {
-        $log.error(err.data);
-        return $scope.loading = false;
-      });
-    };
-    $scope.$watch('queuers', (function(_this) {
-      return function(newValue, oldValue) {
-        return $scope.updateQueuers();
-      };
-    })(this));
-    $scope.updateQueuers = function() {
-      var i, j, len, len1, queuer, ref, ref1, results, server, shash;
-      if ($scope.queuers && $scope.servers) {
-        shash = {};
-        ref = $scope.servers;
-        for (i = 0, len = ref.length; i < len; i++) {
-          server = ref[i];
-          server.serving = null;
-          shash[server.self] = server;
-        }
-        ref1 = $scope.queuers;
-        results = [];
-        for (j = 0, len1 = ref1.length; j < len1; j++) {
-          queuer = ref1[j];
-          if (queuer.$href('person') && shash[queuer.$href('person')] && queuer.position === 0) {
-            results.push(shash[queuer.$href('person')].serving = queuer);
-          } else {
-            results.push(void 0);
-          }
-        }
-        return results;
-      }
-    };
-    $scope.startServingQueuer = function(person, queuer) {
-      return queuer.startServing(person).then(function() {
-        return $scope.getQueuers();
-      });
-    };
-    $scope.finishServingQueuer = function(person) {
-      person.finishServing();
-      return $scope.getQueuers();
-    };
-    $scope.dropCallback = function(event, ui, queuer, $index) {
-      console.log("dropcall");
-      $scope.$apply(function() {
-        return $scope.selectQueuer(null);
-      });
-      return false;
-    };
-    $scope.dragStart = function(event, ui, queuer) {
-      $scope.$apply(function() {
-        $scope.selectDragQueuer(queuer);
-        return $scope.selectQueuer(queuer);
-      });
-      console.log("start", queuer);
-      return false;
-    };
-    return $scope.dragStop = function(event, ui) {
-      console.log("stop", event, ui);
-      $scope.$apply(function() {
-        return $scope.selectQueuer(null);
-      });
-      return false;
-    };
-  });
-
-}).call(this);
-
-(function() {
-  'use strict';
-  angular.module('BBQueue.Controllers').controller('QueuerPosition', [
-    "QueuerService", "$scope", "$pusher", "QueryStringService", function(QueuerService, $scope, $pusher, QueryStringService) {
-      var params;
-      params = {
-        id: QueryStringService('id'),
-        url: $scope.apiUrl
-      };
-      console.log("Params: ", params);
-      return QueuerService.query(params).then(function(queuer) {
-        var channel, client, pusher;
-        console.log("Queuer: ", queuer);
-        $scope.queuer = {
-          name: queuer.first_name,
-          position: queuer.position,
-          dueTime: queuer.due.valueOf(),
-          serviceName: queuer.service.name,
-          spaceId: queuer.space_id,
-          ticketNumber: queuer.ticket_number
-        };
-        client = new Pusher("c8d8cea659cc46060608");
-        console.log("Client: ", client);
-        pusher = $pusher(client);
-        console.log("Pusher: ", pusher);
-        channel = pusher.subscribe("mobile-queue-" + $scope.queuer.spaceId);
-        console.log("Channel: ", channel);
-        return channel.bind('notification', function(data) {
-          $scope.queuer.dueTime = data.due.valueOf();
-          $scope.queuer.ticketNumber = data.ticket_number;
-          return $scope.queuer.position = data.position;
-        });
-      });
-    }
-  ]);
-
-}).call(this);
-
-(function() {
-  angular.module('BBQueue').controller('bbQueuers', function($scope, $log, AdminQueuerService, ModalForm, $interval) {
-    $scope.loading = true;
-    $scope.getQueuers = function() {
-      var params;
-      params = {
-        company: $scope.company
-      };
-      return AdminQueuerService.query(params).then(function(queuers) {
-        var i, len, queuer;
-        $scope.queuers = queuers;
-        $scope.waiting_queuers = [];
-        for (i = 0, len = queuers.length; i < len; i++) {
-          queuer = queuers[i];
-          queuer.remaining();
-          if (queuer.position > 0) {
-            $scope.waiting_queuers.push(queuer);
-          }
-        }
-        return $scope.loading = false;
-      }, function(err) {
-        $log.error(err.data);
-        return $scope.loading = false;
-      });
-    };
-    $scope.newQueuerModal = function() {
-      return ModalForm["new"]({
-        company: $scope.company,
-        title: 'New Queuer',
-        new_rel: 'new_queuer',
-        post_rel: 'queuers',
-        success: function(queuer) {
-          return $scope.queuers.push(queuer);
-        }
-      });
-    };
-    return $interval(function() {
-      var i, len, queuer, ref, results;
-      if ($scope.queuers) {
-        ref = $scope.queuers;
-        results = [];
-        for (i = 0, len = ref.length; i < len; i++) {
-          queuer = ref[i];
-          results.push(queuer.remaining());
-        }
-        return results;
-      }
-    }, 5000);
-  });
-
-}).call(this);
-
-(function() {
-  angular.module('BBQueue').controller('bbQueues', function($scope, $log, AdminQueueService, ModalForm) {
-    $scope.loading = true;
-    return $scope.getQueues = function() {
-      var params;
-      params = {
-        company: $scope.company
-      };
-      return AdminQueueService.query(params).then(function(queues) {
-        $scope.queues = queues;
-        return $scope.loading = false;
-      }, function(err) {
-        $log.error(err.data);
-        return $scope.loading = false;
-      });
-    };
-  });
-
-}).call(this);
-
-(function() {
-  angular.module('BBQueue').directive('bbIfLogin', function($modal, $log, $q, $rootScope, AdminQueueService, AdminCompanyService, $compile, $templateCache, ModalForm, BBModel) {
-    var compile, link;
-    compile = function() {
-      return {
-        pre: function(scope, element, attributes) {
-          this.whenready = $q.defer();
-          scope.loggedin = this.whenready.promise;
-          return AdminCompanyService.query(attributes).then(function(company) {
-            scope.company = company;
-            return this.whenready.resolve();
-          });
-        },
-        post: function(scope, element, attributes) {}
-      };
-    };
-    link = function(scope, element, attrs) {};
-    return {
-      compile: compile
-    };
-  });
-
-  angular.module('BBQueue').directive('bbQueueDashboard', function($modal, $log, $rootScope, $compile, $templateCache, ModalForm, BBModel) {
-    var link;
-    link = function(scope, element, attrs) {
-      return scope.loggedin.then(function() {
-        return scope.getSetup();
-      });
-    };
-    return {
-      link: link,
-      controller: 'bbQueueDashboardController'
-    };
-  });
-
-  angular.module('BBQueue').directive('bbQueues', function($modal, $log, $rootScope, $compile, $templateCache, ModalForm, BBModel) {
-    var link;
-    link = function(scope, element, attrs) {
-      return scope.loggedin.then(function() {
-        return scope.getQueues();
-      });
-    };
-    return {
-      link: link,
-      controller: 'bbQueues'
-    };
-  });
-
-  angular.module('BBQueue').directive('bbQueueServers', function($modal, $log, $rootScope, $compile, $templateCache, ModalForm, BBModel) {
-    var link;
-    link = function(scope, element, attrs) {
-      return scope.loggedin.then(function() {
-        return scope.getServers();
-      });
-    };
-    return {
-      link: link,
-      controller: 'bbQueueServers'
-    };
-  });
-
-}).call(this);
-
-(function() {
-  angular.module('BBQueue').directive('bbQueueServer', function(BBModel, AdminCompanyService, PusherQueue, ModalForm) {
-    var controller, link, pusherListen;
-    pusherListen = function(scope) {
-      PusherQueue.subscribe(scope.company);
-      return PusherQueue.channel.bind('notification', (function(_this) {
-        return function(data) {
-          return scope.getQueuers(scope.server);
-        };
-      })(this));
-    };
-    controller = function($scope) {
-      $scope.getQueuers = function() {
-        return $scope.server.getQueuers();
-      };
-      $scope.getQueuers = _.throttle($scope.getQueuers, 10000);
-      return $scope.newQueuerModal = function() {
-        return ModalForm["new"]({
-          company: $scope.company,
-          title: 'New Queuer',
-          new_rel: 'new_queuer',
-          post_rel: 'queuers',
-          success: function(queuer) {
-            return $scope.server.queuers.push(queuer);
-          }
-        });
-      };
-    };
-    link = function(scope, element, attrs) {
-      if (scope.company) {
-        pusherListen(scope);
-        return scope.server.getQueuers();
-      } else {
-        return AdminCompanyService.query(attrs).then(function(company) {
-          scope.company = company;
-          if (scope.user.$has('person')) {
-            return scope.user.$get('person').then(function(person) {
-              scope.server = new BBModel.Admin.Person(person);
-              scope.server.getQueuers();
-              return pusherListen(scope);
-            });
-          }
-        });
-      }
-    };
-    return {
-      link: link,
-      controller: controller
-    };
-  });
-
-  angular.module('BBQueue').directive('bbQueueServerCustomer', function() {
-    var controller;
-    controller = function($scope) {
-      $scope.selected_queuers = [];
-      $scope.serveCustomer = function() {
-        if ($scope.selected_queuers.length > 0) {
-          $scope.loading = true;
-          return $scope.server.startServing($scope.selected_queuers).then(function() {
             $scope.loading = false;
-            return $scope.getQueuers();
-          });
+            return $scope.waiting_for_queuers = false;
+        }, function (err) {
+            $log.error(err.data);
+            $scope.loading = false;
+            return $scope.waiting_for_queuers = false;
+        });
+    };
+
+    $scope.dropQueuer = function (event, ui, server, trash) {
+        if ($scope.drag_queuer) {
+            if (trash) {
+                $scope.trash_hover = false;
+                $scope.drag_queuer.$del('self').then(function (queuer) {});
+            }
+
+            if (server) {
+                return $scope.drag_queuer.startServing(server).then(function () {});
+            }
         }
-      };
-      $scope.serveNext = function() {
-        $scope.loading = true;
-        return $scope.server.startServing().then(function() {
-          $scope.loading = false;
-          return $scope.getQueuers();
-        });
-      };
-      $scope.extendAppointment = function(mins) {
-        $scope.loading = true;
-        return $scope.server.serving.extendAppointment(mins).then(function() {
-          $scope.loading = false;
-          return $scope.getQueuers();
-        });
-      };
-      $scope.finishServing = function() {
-        $scope.loading = true;
-        return $scope.server.finishServing().then(function() {
-          $scope.loading = false;
-          return $scope.getQueuers();
-        });
-      };
-      $scope.loading = true;
-      if ($scope.server) {
-        return $scope.server.setCurrentCustomer().then(function() {
-          return $scope.loading = false;
-        });
-      }
     };
-    return {
-      controller: controller,
-      templateUrl: 'queue_server_customer.html'
-    };
-  });
 
-}).call(this);
-
-(function() {
-  angular.module('BBQueue').directive('bbAdminQueueTable', function($modal, $log, $rootScope, AdminQueueService, AdminCompanyService, $compile, $templateCache, ModalForm, BBModel) {
-    var link;
-    link = function(scope, element, attrs) {
-      scope.fields || (scope.fields = ['ticket_number', 'first_name', 'last_name', 'email']);
-      if (scope.company) {
-        return scope.getQueuers();
-      } else {
-        return AdminCompanyService.query(attrs).then(function(company) {
-          scope.company = company;
-          return scope.getQueuers();
+    $scope.walkedOut = function (queuer) {
+        return queuer.$delete().then(function () {
+            return $scope.selected_queuer = null;
         });
-      }
     };
-    return {
-      link: link,
-      controller: 'bbQueuers',
-      templateUrl: 'queuer_table.html'
-    };
-  });
 
-}).call(this);
-
-(function() {
-  'use strict';
-  angular.module('BBQueue.Directives').directive('bbQueuerPosition', function() {
-    return {
-      restrict: 'AE',
-      replace: true,
-      controller: 'QueuerPosition',
-      templateUrl: 'queuer_position.html',
-      scope: {
-        id: '=',
-        apiUrl: '@'
-      }
-    };
-  });
-
-}).call(this);
-
-(function() {
-  'use strict';
-  var extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
-    hasProp = {}.hasOwnProperty;
-
-  angular.module('BB.Models').factory("Admin.ClientQueueModel", function($q, BBModel, BaseModel) {
-    var Admin_ClientQueue;
-    return Admin_ClientQueue = (function(superClass) {
-      extend(Admin_ClientQueue, superClass);
-
-      function Admin_ClientQueue() {
-        return Admin_ClientQueue.__super__.constructor.apply(this, arguments);
-      }
-
-      return Admin_ClientQueue;
-
-    })(BaseModel);
-  });
-
-}).call(this);
-
-(function() {
-  'use strict';
-  var extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
-    hasProp = {}.hasOwnProperty;
-
-  angular.module('BB.Models').factory("Admin.QueuerModel", function($q, BBModel, BaseModel) {
-    var Admin_Queuer;
-    return Admin_Queuer = (function(superClass) {
-      extend(Admin_Queuer, superClass);
-
-      function Admin_Queuer(data) {
-        Admin_Queuer.__super__.constructor.call(this, data);
-        this.start = moment.parseZone(this.start);
-        this.due = moment.parseZone(this.due);
-        this.end = moment(this.start).add(this.duration, 'minutes');
-      }
-
-      Admin_Queuer.prototype.remaining = function() {
-        var d;
-        d = this.due.diff(moment.utc(), 'seconds');
-        this.remaining_signed = Math.abs(d);
-        return this.remaining_unsigned = d;
-      };
-
-      Admin_Queuer.prototype.startServing = function(person) {
-        var defer;
-        defer = $q.defer();
-        if (this.$has('start_serving')) {
-          person.$flush('self');
-          this.$post('start_serving', {
-            person_id: person.id
-          }).then((function(_this) {
-            return function(q) {
-              person.$get('self').then(function(p) {
-                return person.updateModel(p);
-              });
-              _this.updateModel(q);
-              return defer.resolve(_this);
-            };
-          })(this), (function(_this) {
-            return function(err) {
-              return defer.reject(err);
-            };
-          })(this));
+    $scope.selectQueuer = function (queuer) {
+        if ($scope.selected_queuer && $scope.selected_queuer === queuer) {
+            return $scope.selected_queuer = null;
         } else {
-          defer.reject('start_serving link not available');
+            return $scope.selected_queuer = queuer;
         }
-        return defer.promise;
-      };
-
-      Admin_Queuer.prototype.finishServing = function() {
-        var defer;
-        defer = $q.defer();
-        if (this.$has('finish_serving')) {
-          this.$post('finish_serving').then((function(_this) {
-            return function(q) {
-              _this.updateModel(q);
-              return defer.resolve(_this);
-            };
-          })(this), (function(_this) {
-            return function(err) {
-              return defer.reject(err);
-            };
-          })(this));
-        } else {
-          defer.reject('finish_serving link not available');
-        }
-        return defer.promise;
-      };
-
-      Admin_Queuer.prototype.extendAppointment = function(minutes) {
-        var d, defer, new_duration;
-        defer = $q.defer();
-        if (this.end.isBefore(moment())) {
-          d = moment.duration(moment().diff(this.start));
-          new_duration = d.as('minutes') + minutes;
-        } else {
-          new_duration = this.duration + minutes;
-        }
-        this.$put('self', {}, {
-          duration: new_duration
-        }).then((function(_this) {
-          return function(q) {
-            _this.updateModel(q);
-            _this.end = moment(_this.start).add(_this.duration, 'minutes');
-            return defer.resolve(_this);
-          };
-        })(this), function(err) {
-          return defer.reject(err);
-        });
-        return defer.promise;
-      };
-
-      return Admin_Queuer;
-
-    })(BaseModel);
-  });
-
-}).call(this);
-
-(function() {
-  'use strict';
-  var extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
-    hasProp = {}.hasOwnProperty;
-
-  angular.module('BB.Models').factory("QueuerModel", [
-    "$q", "BBModel", "BaseModel", function($q, BBModel, BaseModel) {
-      var Queuer;
-      return Queuer = (function(superClass) {
-        extend(Queuer, superClass);
-
-        function Queuer() {
-          return Queuer.__super__.constructor.apply(this, arguments);
-        }
-
-        return Queuer;
-
-      })(BaseModel);
-    }
-  ]);
-
-}).call(this);
-
-(function() {
-  angular.module('BBQueue.Services').factory('AdminQueueService', function($q, $window, halClient, BBModel) {
-    return {
-      query: function(prms) {
-        var deferred;
-        deferred = $q.defer();
-        prms.company.$get('client_queues').then(function(collection) {
-          return collection.$get('client_queues').then(function(client_queues) {
-            var models, q;
-            models = (function() {
-              var i, len, results;
-              results = [];
-              for (i = 0, len = client_queues.length; i < len; i++) {
-                q = client_queues[i];
-                results.push(new BBModel.Admin.ClientQueue(q));
-              }
-              return results;
-            })();
-            return deferred.resolve(models);
-          }, function(err) {
-            return deferred.reject(err);
-          });
-        }, function(err) {
-          return deferred.reject(err);
-        });
-        return deferred.promise;
-      }
     };
-  });
 
-}).call(this);
-
-(function() {
-  angular.module('BBQueue.Services').factory('AdminQueuerService', function($q, $window, halClient, BBModel) {
-    return {
-      query: function(params) {
-        var defer;
-        defer = $q.defer();
-        params.company.$flush('queuers');
-        params.company.$get('queuers').then(function(collection) {
-          return collection.$get('queuers').then(function(queuers) {
-            var models, q;
-            models = (function() {
-              var i, len, results;
-              results = [];
-              for (i = 0, len = queuers.length; i < len; i++) {
-                q = queuers[i];
-                results.push(new BBModel.Admin.Queuer(q));
-              }
-              return results;
-            })();
-            return defer.resolve(models);
-          }, function(err) {
-            return defer.reject(err);
-          });
-        }, function(err) {
-          return defer.reject(err);
-        });
-        return defer.promise;
-      }
+    $scope.selectDragQueuer = function (queuer) {
+        return $scope.drag_queuer = queuer;
     };
-  });
 
-}).call(this);
+    $scope.getServers = function () {
+        if ($scope.getting_people) {
+            return;
+        }
+        $scope.company.$flush('people');
+        $scope.getting_people = true;
+        return AdminPersonService.query({ company: $scope.company }).then(function (people) {
+            $scope.getting_people = false;
+            $scope.all_people = people;
+            $scope.servers = [];
+            var _iteratorNormalCompletion3 = true;
+            var _didIteratorError3 = false;
+            var _iteratorError3 = undefined;
 
-(function() {
-  angular.module('BBQueue.Services').factory('PusherQueue', function($sessionStorage, $pusher, AppConfig) {
-    var PusherQueue;
-    return PusherQueue = (function() {
-      function PusherQueue() {}
+            try {
+                for (var _iterator3 = Array.from($scope.all_people)[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
+                    var person = _step3.value;
 
-      PusherQueue.subscribe = function(company) {
-        if ((company != null) && (typeof Pusher !== "undefined" && Pusher !== null)) {
-          if (this.client == null) {
-            this.client = new Pusher('c8d8cea659cc46060608', {
-              authEndpoint: "/api/v1/push/" + company.id + "/pusher.json",
-              auth: {
-                headers: {
-                  'App-Id': AppConfig['App-Id'],
-                  'App-Key': AppConfig['App-Key'],
-                  'Auth-Token': $sessionStorage.getItem('auth_token')
+                    if (!person.queuing_disabled) {
+                        $scope.servers.push(person);
+                    }
                 }
-              }
+            } catch (err) {
+                _didIteratorError3 = true;
+                _iteratorError3 = err;
+            } finally {
+                try {
+                    if (!_iteratorNormalCompletion3 && _iterator3.return) {
+                        _iterator3.return();
+                    }
+                } finally {
+                    if (_didIteratorError3) {
+                        throw _iteratorError3;
+                    }
+                }
+            }
+
+            $scope.servers = _.sortBy($scope.servers, function (server) {
+                if (server.attendance_status === 1) {
+                    // available
+                    return 0;
+                }
+                if (server.attendance_status === 4) {
+                    // serving/busy
+                    return 1;
+                }
+                if (server.attendance_status === 2) {
+                    // on a break
+                    return 2;
+                }
+                if (server.attendance_status === 3) {
+                    // other
+                    return 3;
+                }
+                if (server.attendance_status === 3) {
+                    // off shift
+                    return 4;
+                }
             });
-          }
-          this.pusher = $pusher(this.client);
-          return this.channel = this.pusher.subscribe("mobile-queue-" + company.id);
+
+            $scope.loading = false;
+            return $scope.updateQueuers();
+        }, function (err) {
+            $scope.getting_people = false;
+            $log.error(err.data);
+            return $scope.loading = false;
+        });
+    };
+
+    $scope.setAttendance = function (person, status, duration) {
+        $scope.loading = true;
+        return person.setAttendance(status, duration).then(function (person) {
+            $scope.loading = false;
+        }, function (err) {
+            $log.error(err.data);
+            return $scope.loading = false;
+        });
+    };
+
+    $scope.$watch('queuers', function (newValue, oldValue) {
+        return $scope.getServers();
+    });
+
+    $scope.updateQueuers = function () {
+        if ($scope.queuers && $scope.servers) {
+            var shash = {};
+            var _iteratorNormalCompletion4 = true;
+            var _didIteratorError4 = false;
+            var _iteratorError4 = undefined;
+
+            try {
+                for (var _iterator4 = Array.from($scope.servers)[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
+                    var server = _step4.value;
+
+                    server.serving = null;
+                    shash[server.self] = server;
+                }
+            } catch (err) {
+                _didIteratorError4 = true;
+                _iteratorError4 = err;
+            } finally {
+                try {
+                    if (!_iteratorNormalCompletion4 && _iterator4.return) {
+                        _iterator4.return();
+                    }
+                } finally {
+                    if (_didIteratorError4) {
+                        throw _iteratorError4;
+                    }
+                }
+            }
+
+            return function () {
+                var result = [];
+                var _iteratorNormalCompletion5 = true;
+                var _didIteratorError5 = false;
+                var _iteratorError5 = undefined;
+
+                try {
+                    for (var _iterator5 = Array.from($scope.queuers)[Symbol.iterator](), _step5; !(_iteratorNormalCompletion5 = (_step5 = _iterator5.next()).done); _iteratorNormalCompletion5 = true) {
+                        var queuer = _step5.value;
+
+                        var item = void 0;
+                        if (queuer.$href('person') && shash[queuer.$href('person')] && queuer.position === 0) {
+                            item = shash[queuer.$href('person')].serving = queuer;
+                        }
+                        result.push(item);
+                    }
+                } catch (err) {
+                    _didIteratorError5 = true;
+                    _iteratorError5 = err;
+                } finally {
+                    try {
+                        if (!_iteratorNormalCompletion5 && _iterator5.return) {
+                            _iterator5.return();
+                        }
+                    } finally {
+                        if (_didIteratorError5) {
+                            throw _iteratorError5;
+                        }
+                    }
+                }
+
+                return result;
+            }();
         }
-      };
+    };
 
-      return PusherQueue;
+    $scope.dropCallback = function (event, ui, queuer, $index) {
+        $scope.$apply(function () {
+            return $scope.selectQueuer(null);
+        });
+        return false;
+    };
 
-    })();
-  });
+    $scope.dragStart = function (event, ui, queuer) {
+        $scope.$apply(function () {
+            $scope.selectDragQueuer(queuer);
+            return $scope.selectQueuer(queuer);
+        });
+        return false;
+    };
 
-}).call(this);
+    return $scope.dragStop = function (event, ui) {
+        $scope.$apply(function () {
+            return $scope.selectQueuer(null);
+        });
+        return false;
+    };
+};
 
-(function() {
-  angular.module('BBQueue.Services').factory('QueuerService', [
-    "$q", "$window", "halClient", "BBModel", function($q, UriTemplate, halClient, BBModel) {
-      return {
-        query: function(params) {
-          var deferred, href, uri, url;
-          deferred = $q.defer();
-          url = "";
-          if (params.url) {
-            url = params.url;
-          }
-          href = url + "/api/v1/queuers/{id}";
-          uri = new UriTemplate(href).fillFromObject(params || {});
-          halClient.$get(uri, {}).then((function(_this) {
-            return function(found) {
-              return deferred.resolve(found);
-            };
-          })(this));
-          return deferred.promise;
+angular.module('BBQueue.controllers').controller('bbQueueDashboard', QueueDashboardController);
+'use strict';
+
+angular.module('BBQueue.directives').directive('bbQueueDashboard', function () {
+    return {
+        controller: 'bbQueueDashboard',
+        link: function link(scope, element, attrs) {
+            return scope.getSetup();
+        }
+    };
+});
+'use strict';
+
+var QueuersController = function QueuersController($scope, $log, AdminQueuerService, AdminQueueService, ModalForm, $interval, $q, BBModel) {
+
+    $scope.loading = true;
+
+    var getServerQueuers = function getServerQueuers() {
+        var defer = $q.defer();
+        $scope.person.$flush('queuers');
+        $scope.person.$get('queuers').then(function (collection) {
+            collection.$get('queuers').then(function (queuers) {
+                queuers = _.map(queuers, function (q) {
+                    return new BBModel.Admin.Queuer(q);
+                });
+                defer.resolve(queuers);
+            });
+        });
+        return defer.promise;
+    };
+
+    $scope.getQueuers = function () {
+        if ($scope.waiting_for_queuers) {
+            return;
+        }
+        $scope.waiting_for_queuers = true;
+        var params = { company: $scope.company };
+
+        var proms = [];
+        var queuer_prom = void 0;
+        if ($scope.person) {
+            queuer_prom = getServerQueuers();
+        } else {
+            queuer_prom = AdminQueuerService.query(params);
+        }
+        proms.push(queuer_prom);
+        queuer_prom.then(function (queuers) {
+            return $scope.new_queuers = queuers;
+        }, function (err) {
+            $scope.waiting_for_queuers = false;
+            $log.error(err.data);
+            $scope.loading = false;
+        });
+
+        var queue_prom = AdminQueueService.query(params);
+        proms.push(queue_prom);
+        queue_prom.then(function (queues) {
+            return $scope.new_queues = queues;
+        });
+
+        $q.all(proms).then(function () {
+            $scope.queuers = $scope.new_queuers;
+            $scope.queues = $scope.new_queues;
+            $scope.waiting_queuers = [];
+            var _iteratorNormalCompletion = true;
+            var _didIteratorError = false;
+            var _iteratorError = undefined;
+
+            try {
+                for (var _iterator = Array.from($scope.queuers)[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+                    var queuer = _step.value;
+
+                    queuer.remaining();
+                    if (queuer.position > 0) {
+                        $scope.waiting_queuers.push({ type: "Q", data: queuer, position: queuer.position });
+                    }
+                }
+            } catch (err) {
+                _didIteratorError = true;
+                _iteratorError = err;
+            } finally {
+                try {
+                    if (!_iteratorNormalCompletion && _iterator.return) {
+                        _iterator.return();
+                    }
+                } finally {
+                    if (_didIteratorError) {
+                        throw _iteratorError;
+                    }
+                }
+            }
+
+            $scope.waiting_queuers = _.sortBy($scope.waiting_queuers, function (x) {
+                return x.position;
+            });
+            $scope.waiting_for_queuers = false;
+
+            var _iteratorNormalCompletion2 = true;
+            var _didIteratorError2 = false;
+            var _iteratorError2 = undefined;
+
+            try {
+                for (var _iterator2 = Array.from($scope.queues)[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+                    var q = _step2.value;
+
+                    q.waiting_queuers = [];
+                    var _iteratorNormalCompletion3 = true;
+                    var _didIteratorError3 = false;
+                    var _iteratorError3 = undefined;
+
+                    try {
+                        for (var _iterator3 = Array.from($scope.waiting_queuers)[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
+                            queuer = _step3.value;
+
+                            if (queuer.type === "Q" && queuer.data.client_queue_id === q.id || queuer.type === "B") {
+                                q.waiting_queuers.push(queuer);
+                            }
+                        }
+                    } catch (err) {
+                        _didIteratorError3 = true;
+                        _iteratorError3 = err;
+                    } finally {
+                        try {
+                            if (!_iteratorNormalCompletion3 && _iterator3.return) {
+                                _iterator3.return();
+                            }
+                        } finally {
+                            if (_didIteratorError3) {
+                                throw _iteratorError3;
+                            }
+                        }
+                    }
+
+                    q.waiting_queuers = _.sortBy(q.waiting_queuers, function (x) {
+                        return x.position;
+                    });
+                }
+            } catch (err) {
+                _didIteratorError2 = true;
+                _iteratorError2 = err;
+            } finally {
+                try {
+                    if (!_iteratorNormalCompletion2 && _iterator2.return) {
+                        _iterator2.return();
+                    }
+                } finally {
+                    if (_didIteratorError2) {
+                        throw _iteratorError2;
+                    }
+                }
+            }
+
+            $scope.loading = false;
+        }, function (err) {
+            $scope.waiting_for_queuers = false;
+            $log.error(err.data);
+            $scope.loading = false;
+        });
+    };
+
+    $scope.getAppointments = function (currentPage, filterBy, filterByFields, orderBy, orderByReverse, skipCache) {
+
+        if (skipCache == null) {
+            skipCache = true;
+        }
+        if (filterByFields && filterByFields.name != null) {
+            filterByFields.name = filterByFields.name.replace(/\s/g, '');
+        }
+        if (filterByFields && filterByFields.mobile != null) {
+            var mobile = filterByFields.mobile;
+
+            if (mobile.indexOf('0') === 0) {
+                filterByFields.mobile = mobile.substring(1);
+            }
+        }
+        var defer = $q.defer();
+        var params = {
+            company: $scope.company,
+            date: moment().format('YYYY-MM-DD'),
+            url: $scope.bb.api_url
+        };
+
+        if (skipCache) {
+            params.skip_cache = true;
+        }
+        if (filterBy) {
+            params.filter_by = filterBy;
+        }
+        if (filterByFields) {
+            params.filter_by_fields = filterByFields;
+        }
+        if (orderBy) {
+            params.order_by = orderBy;
+        }
+        if (orderByReverse) {
+            params.order_by_reverse = orderByReverse;
+        }
+
+        BBModel.Admin.Booking.$query(params).then(function (res) {
+            var bookings = [];
+            var _iteratorNormalCompletion4 = true;
+            var _didIteratorError4 = false;
+            var _iteratorError4 = undefined;
+
+            try {
+                for (var _iterator4 = Array.from(res.items)[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
+                    var item = _step4.value;
+
+                    if (item.status !== 3) {
+                        // not blocked
+                        bookings.push(item);
+                    }
+                }
+            } catch (err) {
+                _didIteratorError4 = true;
+                _iteratorError4 = err;
+            } finally {
+                try {
+                    if (!_iteratorNormalCompletion4 && _iterator4.return) {
+                        _iterator4.return();
+                    }
+                } finally {
+                    if (_didIteratorError4) {
+                        throw _iteratorError4;
+                    }
+                }
+            }
+
+            defer.resolve(bookings);
+        }, function (err) {
+            return defer.reject(err);
+        });
+        return defer.promise;
+    };
+
+    $scope.setStatus = function (booking, status) {
+        var clone = _.clone(booking);
+        clone.current_multi_status = status;
+        booking.$update(clone).then(function (res) {
+            $scope.getQueuers();
+        }, function (err) {
+            AlertService.danger({ msg: 'Something went wrong' });
+        });
+    };
+
+    $scope.newQueuerModal = function () {
+        ModalForm.new({
+            company: $scope.company,
+            title: 'New Queuer',
+            new_rel: 'new_queuer',
+            post_rel: 'queuers',
+            success: function success(queuer) {
+                $scope.queuers.push(queuer);
+            }
+        });
+    };
+
+    $scope.getQueuers();
+
+    // this is used to retrigger a scope check that will update service time
+    $interval(function () {
+        if ($scope.queuers) {
+            Array.from($scope.queuers).map(function (queuer) {
+                return queuer.remaining();
+            });
+        }
+    }, 5000);
+};
+
+angular.module('BBQueue.controllers').controller('bbQueuers', QueuersController);
+'use strict';
+
+angular.module('BBQueue.directives').directive('bbQueuers', function (PusherQueue) {
+    return {
+        controller: 'bbQueuers',
+        link: function link(scope, element, attrs) {
+            PusherQueue.subscribe(scope.bb.company);
+            PusherQueue.channel.bind('notification', function (data) {
+                scope.getQueuers();
+            });
         },
-        removeFromQueue: function(params) {
-          var deferred, href, uri, url;
-          deferred = $q.defer();
-          url = "";
-          if (params.url) {
-            url = params.url;
-          }
-          href = url + "/api/v1/queuers/{id}";
-          uri = new UriTemplate(href).fillFromObject(params || {});
-          halClient.$del(uri).then((function(_this) {
-            return function(found) {
-              return deferred.resolve(found);
-            };
-          })(this));
-          return deferred.promise;
-        }
-      };
-    }
-  ]);
-
-}).call(this);
+        templateUrl: 'queue/queuers.html'
+    };
+});
