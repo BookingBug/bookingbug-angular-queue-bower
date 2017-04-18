@@ -1,0 +1,54 @@
+@import "queue-server";
+@import "queue-add-customer";
+@import "queuers";
+
+.info-box.info-box-sm {
+  min-height: 45px;
+  small {
+      font-size: 12px;
+  }
+  margin-bottom: 0px;
+  .info-box-icon {
+      height: 45px;
+      width: 45px;
+      font-size: 24px;
+      line-height: 45px;
+  }
+  .info-box-content {
+      margin-left: 45px;
+  }
+}
+li.info-box.info-box-sm {
+  margin-bottom: 8px;
+}
+
+.qline_due {
+  float:right;
+  font-size:24px;
+  font-family: "Lucida Console", Monaco, monospace;
+  &.qline_invalid {
+    color:#F00;
+  }
+  background: #FFF;
+  border-radius:4px;
+  width:150px;
+  height:34px;
+  line-height:34px;
+  text-align:center;
+  color:#000;
+  margin-left:5px;
+}
+
+.qline_info {
+  float:left;
+}
+
+.waiting-queuer .ticket-number {
+  float: left;
+  font-size: 20pt;
+  padding-right: 7px;
+}
+
+.invisible {
+  visibility: hidden;
+}
