@@ -212,17 +212,7 @@ var QueueServerController = function QueueServerController($scope, $log, AdminQu
         var serving = person.serving;
 
         $scope.loadingServer = true;
-        if (options.outcomes) {
-            serving.$get('booking').then(function (booking) {
-                booking = new BBModel.Admin.Booking(booking);
-                booking.current_multi_status = options.status;
-                if (booking.$has('edit')) {
-                    finishServingOutcome(person, booking);
-                } else {
-                    $scope.loadingServer = false;
-                }
-            });
-        } else if (options.status) {
+        if (options.status) {
             person.finishServing().then(function () {
                 serving.$get('booking').then(function (booking) {
                     booking = new BBModel.Admin.Booking(booking);
@@ -233,7 +223,15 @@ var QueueServerController = function QueueServerController($scope, $log, AdminQu
                 });
             });
         } else {
-            $scope.loadingServer = false;
+            serving.$get('booking').then(function (booking) {
+                booking = new BBModel.Admin.Booking(booking);
+                booking.current_multi_status = options.status;
+                if (booking.$has('edit')) {
+                    finishServingOutcome(person, booking);
+                } else {
+                    $scope.loadingServer = false;
+                }
+            });
         }
     };
 
@@ -250,8 +248,36 @@ var QueueServerController = function QueueServerController($scope, $log, AdminQu
                             return x.type === 'submit';
                         });
                         form[0].tabs = [form[0].tabs[form[0].tabs.length - 1]];
-                        schema.schem = CheckSchema(schema.schema);
-                        defer.resolve(schema);
+                        var showModalPopUp = false;
+                        var _iteratorNormalCompletion = true;
+                        var _didIteratorError = false;
+                        var _iteratorError = undefined;
+
+                        try {
+                            for (var _iterator = form[0].tabs[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+                                var tab = _step.value;
+
+                                if (tab.title === 'Outcomes') showModalPopUp = true;
+                            }
+                        } catch (err) {
+                            _didIteratorError = true;
+                            _iteratorError = err;
+                        } finally {
+                            try {
+                                if (!_iteratorNormalCompletion && _iterator.return) {
+                                    _iterator.return();
+                                }
+                            } finally {
+                                if (_didIteratorError) {
+                                    throw _iteratorError;
+                                }
+                            }
+                        }
+
+                        if (showModalPopUp === true) {
+                            schema.schema = CheckSchema(schema.schema);
+                            defer.resolve(schema);
+                        } else defer.reject('No outcomes');
                     }, function () {
                         defer.reject();
                     });
@@ -285,8 +311,13 @@ var QueueServerController = function QueueServerController($scope, $log, AdminQu
                     $scope.loadingServer = false;
                 });
             });
-        }, function () {
-            $scope.loadingServer = false;
+        }, function (err) {
+            if (err === 'No outcomes') {
+                person.finishServing().then(function () {
+                    person.attendance_status = 1;
+                    $scope.loadingServer = false;
+                });
+            } else $scope.loadingServer = false;
         });
     };
 
