@@ -151,10 +151,15 @@ angular.module('BBQueue').run(function ($injector, BBModel, $translate) {
 angular.module('BBQueue.controllers').controller('QueueConciergePageCtrl', ['$scope', '$state', function ($scope, $state) {}]);
 'use strict';
 
-var QueueServerController = function QueueServerController($scope, $log, AdminQueueService, ModalForm, BBModel, CheckSchema, $uibModal, AdminPersonService, $q, AdminQueuerService, Dialog, $translate) {
+var QueueServerController = function QueueServerController($scope, $log, AdminQueueService, ModalForm, BBModel, CheckSchema, $uibModal, AdminPersonService, $q, AdminQueuerService, adminQueueLoading, Dialog, $translate) {
+
+    $scope.adminQueueLoading = {
+        isLoadingServerInProgress: adminQueueLoading.isLoadingServerInProgress
+    };
+
+    $scope.loadingServer = false;
 
     var init = function init() {
-        $scope.loadingServer = false;
         var bookings = _.filter($scope.bookings.items, function (booking) {
             return booking.person_id == $scope.person.id;
         });
@@ -181,6 +186,7 @@ var QueueServerController = function QueueServerController($scope, $log, AdminQu
 
     $scope.startServingQueuer = function (person, queuer) {
         $scope.loadingServer = true;
+        adminQueueLoading.setLoadingServerInProgress(true);
         if (upcomingBookingCheck(person)) {
             Dialog.confirm({
                 title: $translate.instant('ADMIN_DASHBOARD.QUEUE_PAGE.NEXT_BOOKING_DIALOG_HEADING'),
@@ -192,10 +198,12 @@ var QueueServerController = function QueueServerController($scope, $log, AdminQu
                         if ($scope.selectQueuer) $scope.selectQueuer(null);
                         $scope.getQueuers();
                         $scope.loadingServer = false;
+                        adminQueueLoading.setLoadingServerInProgress(false);
                     });
                 },
                 fail: function fail() {
                     $scope.loadingServer = false;
+                    adminQueueLoading.setLoadingServerInProgress(false);
                 }
             });
         } else {
@@ -203,6 +211,7 @@ var QueueServerController = function QueueServerController($scope, $log, AdminQu
                 if ($scope.selectQueuer) $scope.selectQueuer(null);
                 $scope.getQueuers();
                 $scope.loadingServer = false;
+                adminQueueLoading.setLoadingServerInProgress(false);
             });
         }
     };
@@ -212,6 +221,7 @@ var QueueServerController = function QueueServerController($scope, $log, AdminQu
         var serving = person.serving;
 
         $scope.loadingServer = true;
+        adminQueueLoading.setLoadingServerInProgress(true);
         if (options.status) {
             person.finishServing().then(function () {
                 serving.$get('booking').then(function (booking) {
@@ -219,6 +229,7 @@ var QueueServerController = function QueueServerController($scope, $log, AdminQu
                     booking.current_multi_status = options.status;
                     booking.$update(booking).then(function (res) {
                         $scope.loadingServer = false;
+                        adminQueueLoading.setLoadingServerInProgress(false);
                     });
                 });
             });
@@ -230,6 +241,7 @@ var QueueServerController = function QueueServerController($scope, $log, AdminQu
                     finishServingOutcome(person, booking);
                 } else {
                     $scope.loadingServer = false;
+                    adminQueueLoading.setLoadingServerInProgress(false);
                 }
             });
         }
@@ -623,6 +635,19 @@ angular.module('BBQueue.services').factory('AdminQueueService', function ($q, BB
                 return defer.reject(err);
             });
             return defer.promise;
+        }
+    };
+});
+'use strict';
+
+angular.module('BBQueue.services').factory('adminQueueLoading', function () {
+    var loadingServerInProgress = false;
+    return {
+        isLoadingServerInProgress: function isLoadingServerInProgress() {
+            return loadingServerInProgress;
+        },
+        setLoadingServerInProgress: function setLoadingServerInProgress(bool) {
+            loadingServerInProgress = bool;
         }
     };
 });
