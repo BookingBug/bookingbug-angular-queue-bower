@@ -141,231 +141,6 @@ angular.module('BBQueue').run(function ($injector, BBModel, $translate) {
 });
 'use strict';
 
-/*
- * @ngdoc controller
- * @name BBQueue.controllers.controller:QueueConciergePageCtrl
- *
- * @description
- * Controller for the queue concierge page
- */
-angular.module('BBQueue.controllers').controller('QueueConciergePageCtrl', ['$scope', '$state', function ($scope, $state) {}]);
-'use strict';
-
-var QueueServerController = function QueueServerController($scope, $log, AdminQueueService, ModalForm, BBModel, CheckSchema, $uibModal, AdminPersonService, $q, AdminQueuerService, adminQueueLoading, Dialog, $translate) {
-
-    $scope.adminQueueLoading = {
-        isLoadingServerInProgress: adminQueueLoading.isLoadingServerInProgress
-    };
-
-    $scope.loadingServer = false;
-
-    var init = function init() {
-        var bookings = _.filter($scope.bookings.items, function (booking) {
-            return booking.person_id == $scope.person.id;
-        });
-        if (bookings && bookings.length > 0) {
-            $scope.person.next_booking = bookings[0];
-        } else {
-            $scope.person.next_booking = null;
-        }
-    };
-
-    $scope.setAttendance = function (person, status, duration) {
-        $scope.loadingServer = true;
-        person.setAttendance(status, duration).then(function (person) {
-            $scope.loadingServer = false;
-        }, function (err) {
-            $log.error(err.data);
-            $scope.loadingServer = false;
-        });
-    };
-
-    var upcomingBookingCheck = function upcomingBookingCheck(person) {
-        return person.next_booking && person.next_booking.start.isBefore(moment().add(1, 'hour'));
-    };
-
-    $scope.startServingQueuer = function (person, queuer) {
-        $scope.loadingServer = true;
-        adminQueueLoading.setLoadingServerInProgress(true);
-        if (upcomingBookingCheck(person)) {
-            Dialog.confirm({
-                title: $translate.instant('ADMIN_DASHBOARD.QUEUE_PAGE.NEXT_BOOKING_DIALOG_HEADING'),
-                body: $translate.instant('ADMIN_DASHBOARD.QUEUE_PAGE.NEXT_BOOKING_DIALOG_BODY', {
-                    name: person.name, time: person.next_booking.start.format('HH:mm')
-                }),
-                success: function success() {
-                    person.startServing(queuer).then(function () {
-                        if ($scope.selectQueuer) $scope.selectQueuer(null);
-                        $scope.getQueuers();
-                        $scope.loadingServer = false;
-                        adminQueueLoading.setLoadingServerInProgress(false);
-                    });
-                },
-                fail: function fail() {
-                    $scope.loadingServer = false;
-                    adminQueueLoading.setLoadingServerInProgress(false);
-                }
-            });
-        } else {
-            person.startServing(queuer).then(function () {
-                if ($scope.selectQueuer) $scope.selectQueuer(null);
-                $scope.getQueuers();
-                $scope.loadingServer = false;
-                adminQueueLoading.setLoadingServerInProgress(false);
-            });
-        }
-    };
-
-    $scope.finishServingQueuer = function (options) {
-        var person = options.person;
-        var serving = person.serving;
-
-        $scope.loadingServer = true;
-        adminQueueLoading.setLoadingServerInProgress(true);
-        if (options.status) {
-            person.finishServing().then(function () {
-                serving.$get('booking').then(function (booking) {
-                    booking = new BBModel.Admin.Booking(booking);
-                    booking.current_multi_status = options.status;
-                    booking.$update(booking).then(function (res) {
-                        $scope.loadingServer = false;
-                        adminQueueLoading.setLoadingServerInProgress(false);
-                    });
-                });
-            });
-        } else {
-            serving.$get('booking').then(function (booking) {
-                booking = new BBModel.Admin.Booking(booking);
-                booking.current_multi_status = options.status;
-                if (booking.$has('edit')) {
-                    finishServingOutcome(person, booking);
-                } else {
-                    $scope.loadingServer = false;
-                    adminQueueLoading.setLoadingServerInProgress(false);
-                }
-            });
-        }
-    };
-
-    var finishServingOutcome = function finishServingOutcome(person, booking) {
-        var modalInstance = $uibModal.open({
-            templateUrl: 'queue/finish_serving_outcome.html',
-            resolve: {
-                person: person,
-                booking: booking,
-                schema: function schema() {
-                    var defer = $q.defer();
-                    booking.$get('edit').then(function (schema) {
-                        var form = _.reject(schema.form, function (x) {
-                            return x.type === 'submit';
-                        });
-                        form[0].tabs = [form[0].tabs[form[0].tabs.length - 1]];
-                        var showModalPopUp = false;
-                        var _iteratorNormalCompletion = true;
-                        var _didIteratorError = false;
-                        var _iteratorError = undefined;
-
-                        try {
-                            for (var _iterator = form[0].tabs[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-                                var tab = _step.value;
-
-                                if (tab.title === 'Outcomes') showModalPopUp = true;
-                            }
-                        } catch (err) {
-                            _didIteratorError = true;
-                            _iteratorError = err;
-                        } finally {
-                            try {
-                                if (!_iteratorNormalCompletion && _iterator.return) {
-                                    _iterator.return();
-                                }
-                            } finally {
-                                if (_didIteratorError) {
-                                    throw _iteratorError;
-                                }
-                            }
-                        }
-
-                        if (showModalPopUp === true) {
-                            schema.schema = CheckSchema(schema.schema);
-                            defer.resolve(schema);
-                        } else defer.reject('No outcomes');
-                    }, function () {
-                        defer.reject();
-                    });
-                    return defer.promise;
-                }
-            },
-            controller: function controller($scope, $uibModalInstance, schema, booking, person) {
-
-                $scope.person = person;
-
-                $scope.form_model = booking;
-
-                $scope.form = schema.form;
-
-                $scope.schema = schema.schema;
-
-                $scope.submit = function () {
-                    return $uibModalInstance.close();
-                };
-
-                $scope.close = function () {
-                    return $uibModalInstance.dismiss('cancel');
-                };
-            }
-        });
-
-        modalInstance.result.then(function () {
-            booking.$update(booking).then(function () {
-                person.finishServing().finally(function () {
-                    person.attendance_status = 1;
-                    $scope.loadingServer = false;
-                });
-            });
-        }, function (err) {
-            if (err === 'No outcomes') {
-                person.finishServing().then(function () {
-                    person.attendance_status = 1;
-                    $scope.loadingServer = false;
-                });
-            } else $scope.loadingServer = false;
-        });
-    };
-
-    $scope.updateQueuer = function () {
-        $scope.person.$get('queuers').then(function (collection) {
-            collection.$get('queuers').then(function (queuers) {
-                queuers = _.map(queuers, function (q) {
-                    return new BBModel.Admin.Queuer(q);
-                });
-                $scope.person.serving = null;
-                var queuer = _.find(queuers, function (queuer) {
-                    return queuer.$has('person') && queuer.$href('person') == $scope.person.$href('self');
-                });
-                $scope.person.serving = queuer;
-            });
-        });
-    };
-
-    $scope.extendAppointment = function (mins) {
-        $scope.loadingServer = true;
-        $scope.person.serving.extendAppointment(mins).then(function (queuer) {
-            $scope.person.serving = queuer;
-            $scope.loadingServer = false;
-        });
-    };
-
-    $scope.$on('updateBookings', function () {
-        return init();
-    });
-
-    init();
-};
-
-angular.module('BBQueue.controllers').controller('bbQueueServerController', QueueServerController);
-'use strict';
-
 angular.module('BBQueue.directives').directive('countdown', function () {
 
     var controller = function controller($scope) {
@@ -837,6 +612,239 @@ angular.module('BBQueue.translations').config(['$translateProvider', function ($
         }
     });
 }]);
+'use strict';
+
+/*
+ * @ngdoc controller
+ * @name BBQueue.controllers.controller:QueueConciergePageCtrl
+ *
+ * @description
+ * Controller for the queue concierge page
+ */
+angular.module('BBQueue.controllers').controller('QueueConciergePageCtrl', ['$scope', '$state', function ($scope, $state) {}]);
+'use strict';
+
+var QueueServerController = function QueueServerController($scope, $log, AdminQueueService, ModalForm, BBModel, CheckSchema, $uibModal, AdminPersonService, $q, AdminQueuerService, adminQueueLoading, Dialog, $translate) {
+
+    $scope.adminQueueLoading = {
+        isLoadingServerInProgress: adminQueueLoading.isLoadingServerInProgress
+    };
+
+    $scope.loadingServer = false;
+
+    var init = function init() {
+        var bookings = _.filter($scope.bookings.items, function (booking) {
+            return booking.person_id == $scope.person.id;
+        });
+        if (bookings && bookings.length > 0) {
+            $scope.person.next_booking = bookings[0];
+        } else {
+            $scope.person.next_booking = null;
+        }
+    };
+
+    $scope.setAttendance = function (person, status, duration) {
+        $scope.loadingServer = true;
+        person.setAttendance(status, duration).then(function (person) {
+            $scope.loadingServer = false;
+        }, function (err) {
+            $log.error(err.data);
+            $scope.loadingServer = false;
+        });
+    };
+
+    var upcomingBookingCheck = function upcomingBookingCheck(person) {
+        return person.next_booking && person.next_booking.start.isBefore(moment().add(1, 'hour'));
+    };
+
+    $scope.startServingQueuer = function (person, queuer) {
+        $scope.loadingServer = true;
+        adminQueueLoading.setLoadingServerInProgress(true);
+        if (upcomingBookingCheck(person)) {
+            Dialog.confirm({
+                title: $translate.instant('ADMIN_DASHBOARD.QUEUE_PAGE.NEXT_BOOKING_DIALOG_HEADING'),
+                body: $translate.instant('ADMIN_DASHBOARD.QUEUE_PAGE.NEXT_BOOKING_DIALOG_BODY', {
+                    name: person.name, time: person.next_booking.start.format('HH:mm')
+                }),
+                success: function success() {
+                    person.startServing(queuer).then(function () {
+                        if ($scope.selectQueuer) $scope.selectQueuer(null);
+                        $scope.getQueuers();
+                        $scope.loadingServer = false;
+                        adminQueueLoading.setLoadingServerInProgress(false);
+                    });
+                },
+                fail: function fail() {
+                    $scope.loadingServer = false;
+                    adminQueueLoading.setLoadingServerInProgress(false);
+                }
+            });
+        } else {
+            person.startServing(queuer).then(function () {
+                if ($scope.selectQueuer) $scope.selectQueuer(null);
+                $scope.getQueuers();
+                $scope.loadingServer = false;
+                adminQueueLoading.setLoadingServerInProgress(false);
+            });
+        }
+    };
+
+    $scope.finishServingQueuer = function (options) {
+        var person = options.person;
+        var serving = person.serving;
+
+        $scope.loadingServer = true;
+        adminQueueLoading.setLoadingServerInProgress(true);
+        if (options.status) {
+            person.finishServing().then(function () {
+                serving.$get('booking').then(function (booking) {
+                    booking = new BBModel.Admin.Booking(booking);
+                    booking.current_multi_status = options.status;
+                    booking.$update(booking).then(function (res) {
+                        $scope.loadingServer = false;
+                        adminQueueLoading.setLoadingServerInProgress(false);
+                    }, function (err) {
+                        $scope.loadingServer = false;
+                        adminQueueLoading.setLoadingServerInProgress(false);
+                    });
+                });
+            });
+        } else {
+            serving.$get('booking').then(function (booking) {
+                booking = new BBModel.Admin.Booking(booking);
+                booking.current_multi_status = options.status;
+                if (booking.$has('edit')) {
+                    finishServingOutcome(person, booking);
+                } else {
+                    $scope.loadingServer = false;
+                    adminQueueLoading.setLoadingServerInProgress(false);
+                }
+            });
+        }
+    };
+
+    var finishServingOutcome = function finishServingOutcome(person, booking) {
+        var modalInstance = $uibModal.open({
+            templateUrl: 'queue/finish_serving_outcome.html',
+            resolve: {
+                person: person,
+                booking: booking,
+                schema: function schema() {
+                    var defer = $q.defer();
+                    booking.$get('edit').then(function (schema) {
+                        var form = _.reject(schema.form, function (x) {
+                            return x.type === 'submit';
+                        });
+                        form[0].tabs = [form[0].tabs[form[0].tabs.length - 1]];
+                        var showModalPopUp = false;
+                        var _iteratorNormalCompletion = true;
+                        var _didIteratorError = false;
+                        var _iteratorError = undefined;
+
+                        try {
+                            for (var _iterator = form[0].tabs[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+                                var tab = _step.value;
+
+                                if (tab.title === 'Outcomes') showModalPopUp = true;
+                            }
+                        } catch (err) {
+                            _didIteratorError = true;
+                            _iteratorError = err;
+                        } finally {
+                            try {
+                                if (!_iteratorNormalCompletion && _iterator.return) {
+                                    _iterator.return();
+                                }
+                            } finally {
+                                if (_didIteratorError) {
+                                    throw _iteratorError;
+                                }
+                            }
+                        }
+
+                        if (showModalPopUp === true) {
+                            schema.schema = CheckSchema(schema.schema);
+                            defer.resolve(schema);
+                        } else defer.reject('No outcomes');
+                    }, function () {
+                        defer.reject();
+                    });
+                    return defer.promise;
+                }
+            },
+            controller: function controller($scope, $uibModalInstance, schema, booking, person) {
+
+                $scope.person = person;
+
+                $scope.form_model = booking;
+
+                $scope.form = schema.form;
+
+                $scope.schema = schema.schema;
+
+                $scope.submit = function () {
+                    return $uibModalInstance.close();
+                };
+
+                $scope.close = function () {
+                    return $uibModalInstance.dismiss('cancel');
+                };
+            }
+        });
+
+        modalInstance.result.then(function () {
+            booking.$update(booking).then(function () {
+                person.finishServing().finally(function () {
+                    person.attendance_status = 1;
+                    $scope.loadingServer = false;
+                    adminQueueLoading.setLoadingServerInProgress(false);
+                });
+            });
+        }, function (err) {
+            if (err === 'No outcomes') {
+                person.finishServing().then(function () {
+                    person.attendance_status = 1;
+                    $scope.loadingServer = false;
+                    adminQueueLoading.setLoadingServerInProgress(false);
+                });
+            } else {
+                $scope.loadingServer = false;
+                adminQueueLoading.setLoadingServerInProgress(false);
+            }
+        });
+    };
+
+    $scope.updateQueuer = function () {
+        $scope.person.$get('queuers').then(function (collection) {
+            collection.$get('queuers').then(function (queuers) {
+                queuers = _.map(queuers, function (q) {
+                    return new BBModel.Admin.Queuer(q);
+                });
+                $scope.person.serving = null;
+                var queuer = _.find(queuers, function (queuer) {
+                    return queuer.$has('person') && queuer.$href('person') == $scope.person.$href('self');
+                });
+                $scope.person.serving = queuer;
+            });
+        });
+    };
+
+    $scope.extendAppointment = function (mins) {
+        $scope.loadingServer = true;
+        $scope.person.serving.extendAppointment(mins).then(function (queuer) {
+            $scope.person.serving = queuer;
+            $scope.loadingServer = false;
+        });
+    };
+
+    $scope.$on('updateBookings', function () {
+        return init();
+    });
+
+    init();
+};
+
+angular.module('BBQueue.controllers').controller('bbQueueServerController', QueueServerController);
 'use strict';
 
 var AddQueueCustomerController = function AddQueueCustomerController($scope, $log, AdminServiceService, AdminQueuerService, ModalForm, BBModel, $interval, $sessionStorage, $uibModal, $q, AdminBookingPopup) {
