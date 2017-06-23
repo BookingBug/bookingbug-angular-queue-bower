@@ -212,409 +212,9 @@ angular.module('BBQueue.directives').directive('bbServerListItem', function () {
         templateUrl: 'queue/queue_server_list_item.html'
     };
 });
-"use strict";
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-angular.module('BB.Models').factory("AdminClientQueueModel", function ($q, BBModel, BaseModel) {
-
-    return function (_BaseModel) {
-        _inherits(Admin_ClientQueue, _BaseModel);
-
-        function Admin_ClientQueue() {
-            _classCallCheck(this, Admin_ClientQueue);
-
-            return _possibleConstructorReturn(this, _BaseModel.apply(this, arguments));
-        }
-
-        return Admin_ClientQueue;
-    }(BaseModel);
-});
 'use strict';
 
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-angular.module('BB.Models').factory("AdminQueuerModel", function ($q, BBModel, BaseModel) {
-
-    return function (_BaseModel) {
-        _inherits(Admin_Queuer, _BaseModel);
-
-        function Admin_Queuer(data) {
-            _classCallCheck(this, Admin_Queuer);
-
-            var _this = _possibleConstructorReturn(this, _BaseModel.call(this, data));
-
-            _this.start = moment.parseZone(_this.start);
-            _this.due = moment.parseZone(_this.due);
-            _this.end = moment(_this.start).add(_this.duration, 'minutes');
-            _this.created_at = moment.parseZone(_this.created_at);
-            return _this;
-        }
-
-        Admin_Queuer.prototype.remaining = function remaining() {
-            var d = this.due.diff(moment.utc(), 'seconds');
-            this.remaining_unsigned = Math.abs(d);
-            return this.remaining_signed = d;
-        };
-
-        Admin_Queuer.prototype.getName = function getName() {
-            var str = "";
-            if (this.first_name) {
-                str += this.first_name;
-            }
-            if (str.length > 0 && this.last_name) {
-                str += " ";
-            }
-            if (this.last_name) {
-                str += this.last_name;
-            }
-            return str;
-        };
-
-        /***
-         * @ngdoc method
-         * @name fullMobile
-         * @methodOf BB.Models:Address
-         * @description
-         * Full mobile phone number of the client
-         *
-         * @returns {object} The returned full mobile number
-         */
-
-
-        Admin_Queuer.prototype.fullMobile = function fullMobile() {
-            if (!this.mobile) {
-                return;
-            }
-            if (!this.mobile_prefix) {
-                return this.mobile;
-            }
-            return '+' + this.mobile_prefix + (this.mobile.substr(0, 1) === '0' ? this.mobile.substr(1) : this.mobile);
-        };
-
-        Admin_Queuer.prototype.startServing = function startServing(person) {
-            var _this2 = this;
-
-            var defer = $q.defer();
-            if (this.$has('start_serving')) {
-                console.log('start serving url ', this.$href('start_serving'));
-                person.$flush('self');
-                this.$post('start_serving', { person_id: person.id }).then(function (q) {
-                    person.$get('self').then(function (p) {
-                        return person.updateModel(p);
-                    });
-                    _this2.updateModel(q);
-                    return defer.resolve(_this2);
-                }, function (err) {
-                    return defer.reject(err);
-                });
-            } else {
-                defer.reject('start_serving link not available');
-            }
-            return defer.promise;
-        };
-
-        Admin_Queuer.prototype.finishServing = function finishServing() {
-            var _this3 = this;
-
-            var defer = $q.defer();
-            if (this.$has('finish_serving')) {
-                this.$post('finish_serving').then(function (q) {
-                    _this3.updateModel(q);
-                    return defer.resolve(_this3);
-                }, function (err) {
-                    return defer.reject(err);
-                });
-            } else {
-                defer.reject('finish_serving link not available');
-            }
-            return defer.promise;
-        };
-
-        Admin_Queuer.prototype.extendAppointment = function extendAppointment(minutes) {
-            var _this4 = this;
-
-            var new_duration = void 0;
-            var defer = $q.defer();
-            if (this.end.isBefore(moment())) {
-                var d = moment.duration(moment().diff(this.start));
-                new_duration = d.as('minutes') + minutes;
-            } else {
-                new_duration = this.duration + minutes;
-            }
-            this.$put('self', {}, { duration: new_duration }).then(function (q) {
-                _this4.updateModel(q);
-                _this4.end = moment(_this4.start).add(_this4.duration, 'minutes');
-                return defer.resolve(_this4);
-            }, function (err) {
-                return defer.reject(err);
-            });
-            return defer.promise;
-        };
-
-        Admin_Queuer.prototype.$refetch = function $refetch() {
-            var _this5 = this;
-
-            var defer = $q.defer();
-            this.$flush('self');
-            this.$get('self').then(function (res) {
-                _this5.constructor(res);
-                return defer.resolve(_this5);
-            }, function (err) {
-                return defer.reject(err);
-            });
-            return defer.promise;
-        };
-
-        Admin_Queuer.prototype.$delete = function $delete() {
-            var _this6 = this;
-
-            var defer = $q.defer();
-            this.$flush('self');
-            this.$del('self').then(function (res) {
-                _this6.constructor(res);
-                return defer.resolve(_this6);
-            }, function (err) {
-                return defer.reject(err);
-            });
-            return defer.promise;
-        };
-
-        return Admin_Queuer;
-    }(BaseModel);
-});
-'use strict';
-
-angular.module('BBQueue.services').factory('AdminQueueService', function ($q, BBModel) {
-    return {
-        query: function query(params) {
-            var defer = $q.defer();
-            params.company.$get('client_queues').then(function (collection) {
-                return collection.$get('client_queues').then(function (client_queues) {
-                    var models = Array.from(client_queues).map(function (q) {
-                        return new BBModel.Admin.ClientQueue(q);
-                    });
-                    return defer.resolve(models);
-                }, function (err) {
-                    return defer.reject(err);
-                });
-            }, function (err) {
-                return defer.reject(err);
-            });
-            return defer.promise;
-        }
-    };
-});
-'use strict';
-
-angular.module('BBQueue.services').factory('adminQueueLoading', function () {
-    var loadingServerInProgress = false;
-    return {
-        isLoadingServerInProgress: function isLoadingServerInProgress() {
-            return loadingServerInProgress;
-        },
-        setLoadingServerInProgress: function setLoadingServerInProgress(bool) {
-            loadingServerInProgress = bool;
-        }
-    };
-});
-'use strict';
-
-/*
- * @ngdoc service
- * @name BBQueue.services.service:AdminQueueOptions
- *
- * @description
- * Returns a set of admin queueing configuration options
- */
-
-/*
- * @ngdoc service
- * @name BBQueue.services.service:AdminQueueOptionsProvider
- *
- * @description
- * Provider
- *
- * @example
- <example>
- angular.module('ExampleModule').config ['AdminQueueOptionsProvider', (AdminQueueOptionsProvider) ->
- AdminQueueOptionsProvider.setOption('option', 'value')
- ]
- </example>
- */
-angular.module('BBQueue.services').provider('AdminQueueOptions', function () {
-    var options = {
-        use_default_states: true,
-        show_in_navigation: true,
-        parent_state: 'root'
-    };
-
-    this.setOption = function (option, value) {
-        if (options.hasOwnProperty(option)) {
-            options[option] = value;
-        }
-    };
-
-    this.getOption = function (option) {
-        if (options.hasOwnProperty(option)) {
-            return options[option];
-        }
-    };
-    this.$get = function () {
-        return options;
-    };
-});
-'use strict';
-
-angular.module('BBQueue.services').factory('AdminQueuerService', function ($q, BBModel) {
-    return {
-        query: function query(params) {
-            var defer = $q.defer();
-            params.company.$flush('queuers');
-            params.company.$get('queuers').then(function (collection) {
-                return collection.$get('queuers').then(function (queuers) {
-                    var models = Array.from(queuers).map(function (q) {
-                        return new BBModel.Admin.Queuer(q);
-                    });
-                    return defer.resolve(models);
-                }, function (err) {
-                    return defer.reject(err);
-                });
-            }, function (err) {
-                return defer.reject(err);
-            });
-            return defer.promise;
-        }
-    };
-});
-'use strict';
-
-// THIS IS CRUFTY AND SHOULD BE REMOVE WITH AN API UPDATE THAT TIDIES UP THE SCEMA RESPONE
-// fix the issues we have with the the sub client and question blocks being in doted notation, and
-// not in child objects
-angular.module('BBQueue.services').service('CheckSchema', function ($q, BBModel) {
-    return function (schema) {
-        for (var k in schema.properties) {
-            var v = schema.properties[k];
-            var vals = k.split(".");
-            if (vals[0] === "questions" && vals.length > 1) {
-                if (!schema.properties.questions) {
-                    schema.properties.questions = { type: "object", properties: {} };
-                }
-                if (!schema.properties.questions.properties[vals[1]]) {
-                    schema.properties.questions.properties[vals[1]] = {
-                        type: "object",
-                        properties: { answer: v }
-                    };
-                }
-            }
-            if (vals[0] === "client" && vals.length > 2) {
-                if (!schema.properties.client) {
-                    schema.properties.client = {
-                        type: "object",
-                        properties: { q: { type: "object", properties: {} } }
-                    };
-                }
-                if (schema.properties.client.properties) {
-                    if (!schema.properties.client.properties.q.properties[vals[2]]) {
-                        schema.properties.client.properties.q.properties[vals[2]] = {
-                            type: "object",
-                            properties: { answer: v }
-                        };
-                    }
-                }
-            }
-        }
-        return schema;
-    };
-});
-'use strict';
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-angular.module('BBQueue.services').factory('PusherQueue', function ($sessionStorage, AppConfig) {
-    return function () {
-        function PusherQueue() {
-            _classCallCheck(this, PusherQueue);
-        }
-
-        PusherQueue.subscribe = function subscribe(company) {
-            if (company != null && typeof Pusher !== 'undefined' && Pusher !== null) {
-                if (this.client == null) {
-                    this.pusher = new Pusher('c8d8cea659cc46060608', {
-                        authEndpoint: '/api/v1/push/' + company.id + '/pusher.json',
-                        auth: {
-                            headers: {
-                                'App-Id': AppConfig['App-Id'],
-                                'App-Key': AppConfig['App-Key'],
-                                'Auth-Token': $sessionStorage.getItem('auth_token')
-                            }
-                        }
-                    });
-                    return this.channel = this.pusher.subscribe('mobile-queue-' + company.id);
-                }
-            }
-        };
-
-        return PusherQueue;
-    }();
-});
-'use strict';
-
-/*
-* @ngdoc overview
-* @name BBQueue.translations
-*
-* @description
-* Translations for the queue people module
-*/
-angular.module('BBQueue.translations').config(['$translateProvider', function ($translateProvider) {
-    return $translateProvider.translations('en', {
-        'SIDE_NAV_QUEUING': 'QUEUING',
-        'ADMIN_DASHBOARD': {
-            'SIDE_NAV': {
-                'QUEUE_PAGE': {
-                    'QUEUE': 'Concierge',
-                    'REPORT': 'Queue Reports',
-                    'BOOKING_REPORT': 'Booking Reports',
-                    'PERF_REPORT': 'Performance Reports',
-                    'MAP_REPORT': 'Map Reports',
-                    'LIST': 'Queue Display'
-                }
-            },
-            'QUEUE_PAGE': {
-                'PEOPLE': 'Colleagues',
-                'PERSON': 'Colleague',
-                'DATETIME': 'Date Time',
-                'DETAILS': 'Details',
-                'CLIENT': 'Client',
-                'NAME': 'Name',
-                'EMAIL': 'Email',
-                'MOBILE': 'Mobile',
-                'PHONE': 'Phone',
-                'ACTIONS': 'Actions',
-                'EDIT': 'Edit',
-                'ABOUT': 'About',
-                'ADDRESS': 'Address',
-                'UPCOMING_BOOKINGS': 'Upcoming Bookings',
-                'PAST_BOOKINGS': 'Past Bookings',
-                'NEXT_BOOKING_DIALOG_HEADING': 'Upcoming Appointment',
-                'NEXT_BOOKING_DIALOG_BODY': '{{name}} has an appointment at {{time}}. Are you sure they want to serve another customer beforehand?'
-            }
-        }
-    });
-}]);
-'use strict';
-
-/*
+/**
  * @ngdoc controller
  * @name BBQueue.controllers.controller:QueueConciergePageCtrl
  *
@@ -845,6 +445,481 @@ var QueueServerController = function QueueServerController($scope, $log, AdminQu
 };
 
 angular.module('BBQueue.controllers').controller('bbQueueServerController', QueueServerController);
+"use strict";
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+angular.module('BB.Models').factory("AdminClientQueueModel", function ($q, BBModel, BaseModel) {
+
+    return function (_BaseModel) {
+        _inherits(Admin_ClientQueue, _BaseModel);
+
+        function Admin_ClientQueue() {
+            _classCallCheck(this, Admin_ClientQueue);
+
+            return _possibleConstructorReturn(this, _BaseModel.apply(this, arguments));
+        }
+
+        return Admin_ClientQueue;
+    }(BaseModel);
+});
+'use strict';
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+angular.module('BB.Models').factory("AdminQueuerModel", function ($q, BBModel, BaseModel) {
+
+    return function (_BaseModel) {
+        _inherits(Admin_Queuer, _BaseModel);
+
+        function Admin_Queuer(data) {
+            _classCallCheck(this, Admin_Queuer);
+
+            var _this = _possibleConstructorReturn(this, _BaseModel.call(this, data));
+
+            _this.start = moment.parseZone(_this.start);
+            _this.due = moment.parseZone(_this.due);
+            _this.end = moment(_this.start).add(_this.duration, 'minutes');
+            _this.created_at = moment.parseZone(_this.created_at);
+            return _this;
+        }
+
+        Admin_Queuer.prototype.remaining = function remaining() {
+            var d = this.due.diff(moment.utc(), 'seconds');
+            this.remaining_unsigned = Math.abs(d);
+            return this.remaining_signed = d;
+        };
+
+        Admin_Queuer.prototype.getName = function getName() {
+            var str = "";
+            if (this.first_name) {
+                str += this.first_name;
+            }
+            if (str.length > 0 && this.last_name) {
+                str += " ";
+            }
+            if (this.last_name) {
+                str += this.last_name;
+            }
+            return str;
+        };
+
+        /***
+         * @ngdoc method
+         * @name fullMobile
+         * @methodOf BB.Models:Address
+         * @description
+         * Full mobile phone number of the client
+         *
+         * @returns {object} The returned full mobile number
+         */
+
+
+        Admin_Queuer.prototype.fullMobile = function fullMobile() {
+            if (!this.mobile) {
+                return;
+            }
+            if (!this.mobile_prefix) {
+                return this.mobile;
+            }
+            return '+' + this.mobile_prefix + (this.mobile.substr(0, 1) === '0' ? this.mobile.substr(1) : this.mobile);
+        };
+
+        Admin_Queuer.prototype.startServing = function startServing(person) {
+            var _this2 = this;
+
+            var defer = $q.defer();
+            if (this.$has('start_serving')) {
+                console.log('start serving url ', this.$href('start_serving'));
+                person.$flush('self');
+                this.$post('start_serving', { person_id: person.id }).then(function (q) {
+                    person.$get('self').then(function (p) {
+                        return person.updateModel(p);
+                    });
+                    _this2.updateModel(q);
+                    return defer.resolve(_this2);
+                }, function (err) {
+                    return defer.reject(err);
+                });
+            } else {
+                defer.reject('start_serving link not available');
+            }
+            return defer.promise;
+        };
+
+        Admin_Queuer.prototype.finishServing = function finishServing() {
+            var _this3 = this;
+
+            var defer = $q.defer();
+            if (this.$has('finish_serving')) {
+                this.$post('finish_serving').then(function (q) {
+                    _this3.updateModel(q);
+                    return defer.resolve(_this3);
+                }, function (err) {
+                    return defer.reject(err);
+                });
+            } else {
+                defer.reject('finish_serving link not available');
+            }
+            return defer.promise;
+        };
+
+        Admin_Queuer.prototype.extendAppointment = function extendAppointment(minutes) {
+            var _this4 = this;
+
+            var new_duration = void 0;
+            var defer = $q.defer();
+            if (this.end.isBefore(moment())) {
+                var d = moment.duration(moment().diff(this.start));
+                new_duration = d.as('minutes') + minutes;
+            } else {
+                new_duration = this.duration + minutes;
+            }
+            this.$put('self', {}, { duration: new_duration }).then(function (q) {
+                _this4.updateModel(q);
+                _this4.end = moment(_this4.start).add(_this4.duration, 'minutes');
+                return defer.resolve(_this4);
+            }, function (err) {
+                return defer.reject(err);
+            });
+            return defer.promise;
+        };
+
+        Admin_Queuer.prototype.$refetch = function $refetch() {
+            var _this5 = this;
+
+            var defer = $q.defer();
+            this.$flush('self');
+            this.$get('self').then(function (res) {
+                _this5.constructor(res);
+                return defer.resolve(_this5);
+            }, function (err) {
+                return defer.reject(err);
+            });
+            return defer.promise;
+        };
+
+        Admin_Queuer.prototype.$delete = function $delete() {
+            var _this6 = this;
+
+            var defer = $q.defer();
+            this.$flush('self');
+            this.$del('self').then(function (res) {
+                _this6.constructor(res);
+                return defer.resolve(_this6);
+            }, function (err) {
+                return defer.reject(err);
+            });
+            return defer.promise;
+        };
+
+        return Admin_Queuer;
+    }(BaseModel);
+});
+'use strict';
+
+/**
+* @ngdoc overview
+* @name BBQueue.translations
+*
+* @description
+* Translations for the queue people module
+*/
+angular.module('BBQueue.translations').config(['$translateProvider', function ($translateProvider) {
+    return $translateProvider.translations('en', {
+        'SIDE_NAV_QUEUING': 'QUEUING',
+        'ADMIN_DASHBOARD': {
+            'SIDE_NAV': {
+                'QUEUE_PAGE': {
+                    'QUEUE': 'Concierge',
+                    'REPORT': 'Queue Reports',
+                    'BOOKING_REPORT': 'Booking Reports',
+                    'PERF_REPORT': 'Performance Reports',
+                    'MAP_REPORT': 'Map Reports',
+                    'LIST': 'Queue Display'
+                }
+            },
+            'QUEUE_PAGE': {
+                'NEXT_BOOKING_DIALOG_HEADING': 'Upcoming Appointment',
+                'NEXT_BOOKING_DIALOG_BODY': '{{name}} has an appointment at {{time}}. Are you sure they want to serve another customer beforehand?',
+                'NEW_QUEUER': 'New Queuer',
+                'ADD_CUSTOMER_FORM': {
+                    'TITLE': "Add Customer",
+                    'FIRST_NAME_LBL': "First Name *",
+                    'FIRST_NAME_PLACEHOLDER': "First Name",
+                    'LAST_NAME_LBL': "@:COMMON.TERMINOLOGY.LAST_NAME",
+                    'LAST_NAME_PLACEHOLDER': "@:COMMON.TERMINOLOGY.LAST_NAME",
+                    'MOBILE_LBL': "@:COMMON.TERMINOLOGY.MOBILE",
+                    'MOBILE_PLACEHOLDER': "@:COMMON.TERMINOLOGY.MOBILE",
+                    'NOTES_LBL': "Notes",
+                    'NOTES_PLACEHOLDER': "Notes",
+                    'MAKE_APPOINTMENT_BTN': "Make Appointment",
+                    'SERVE_NOW_BTN': "Serve Now",
+                    'ADD_TO_QUEUE_BTN': "Add to Queue"
+                },
+                'SERVE_NOW_MODAL': {
+                    'TITLE': 'Serve Now',
+                    'PICK_A_SERVICE_LBL': "Pick a service",
+                    'PICK_A_SERVER_LBL': "Pick a server",
+                    'DISMISS_BTN': 'Dismiss',
+                    'SERVE_NOW_BTN': "Serve Now"
+                },
+                'PICK_A_SERVICE_MODAL': {
+                    'TITLE': 'Pick a Service',
+                    'CANCEL_BTN': 'Cancel'
+                },
+                'FINISH_SERVING_OUTCOME_MODAL': {
+                    'EDIT_CUSTOMER_BTN': 'Edit Customer',
+                    'SAVE_AND_FINISH_SERVING_BTN': 'Save and Finish Serving'
+                },
+                'QUEUE_SERVER_ACTIONS': {
+                    'ACTIONS_BTN': 'Actions',
+                    'TOGGLE_DROPDOWN_CARET_LBL': 'Toggle Dropdown',
+                    'SET_FREE': 'Set Free',
+                    'SET_AS_AVAILABLE': 'Set as Available',
+                    'AVAILABLE_END_BREAK': 'Available / End Break',
+                    'END_SHIFT': 'End Shift',
+                    'ON_BREAK_FOR': 'On Break for',
+                    'MARK_AS_BUSY_FOR': 'Mark as busy for',
+                    'FINISH_SERVING_BTN': 'Finish Serving',
+                    'SERVE_BTN': 'Serve',
+                    'SERVE_NEXT_BTN': 'Serve Next',
+                    'MARK_ABSENT_BTN': 'Mark Absent'
+                },
+                'QUEUE_SERVER_LIST_ITEM': {
+                    'AVAILABLE': 'Available',
+                    'ON_BREAK_UNTIL': 'On break until',
+                    'ESTIMATED': 'estimated',
+                    'BUSY_UNTIL': 'Busy until',
+                    'SERVING': 'Serving',
+                    'SINCE': 'Since',
+                    'FINISH_ESTIMATE': 'Finish Estimate',
+                    'NEXT_APPOINTMENT': 'Next appointment'
+                },
+                'QUEUERS': {
+                    'ARRIVED_AT': 'Arrived at',
+                    'DUE_AT': 'Due at',
+                    'SERVICE': 'Service',
+                    'CHECK_IN': 'Check in',
+                    'NO_SHOW': 'No Show',
+                    'WALKED_OUT': 'Walked out'
+                },
+                'SELECTED_QUEUER': {
+                    'QUEUER': 'Queuer',
+                    'DUE': 'Due',
+                    'POSITION': 'Position',
+                    'ARRIVED': 'Arrived',
+                    'ESTIMATED_WAIT_TIME': 'Estimated Wait Time ',
+                    'MINUTE': 'minute',
+                    'SERVICE': 'Service',
+                    'NAME': 'Name',
+                    'MOBILE': 'Mobile',
+                    'EMAIL': 'Email',
+                    'NOTES': 'Notes',
+                    'TOGGLE_DROPDOWN_CARET_LBL': 'Toggle Dropdown',
+                    'BACK_BTN': 'Back',
+                    'FORWARD_BTN': 'Forward',
+                    'LEAVE_QUEUE_BTN': 'Leave Queue',
+                    'EDIT_CUSTOMER_BTN': 'Edit Customer',
+                    'CLOSE_BTN': 'Close'
+                },
+                'SERVER': {
+                    'SERVING': 'Serving',
+                    'APPOINTMENT_STARTED_AT': 'Appointment started at',
+                    'APPOINTMENT_DUE_TO_FINISH_AT': 'Appointment due to finish at',
+                    'EXTEND_APPOINTMENT': 'Extend Appointment',
+                    'TOGGLE_DROPDOWN_CARET_LBL': 'Toggle Dropdown',
+                    'IDLE': 'Idle',
+                    'NEXT_APPOINTMENT': 'Next appointment'
+                }
+            }
+        }
+    });
+}]);
+'use strict';
+
+angular.module('BBQueue.services').factory('AdminQueueService', function ($q, BBModel) {
+    return {
+        query: function query(params) {
+            var defer = $q.defer();
+            params.company.$get('client_queues').then(function (collection) {
+                return collection.$get('client_queues').then(function (client_queues) {
+                    var models = Array.from(client_queues).map(function (q) {
+                        return new BBModel.Admin.ClientQueue(q);
+                    });
+                    return defer.resolve(models);
+                }, function (err) {
+                    return defer.reject(err);
+                });
+            }, function (err) {
+                return defer.reject(err);
+            });
+            return defer.promise;
+        }
+    };
+});
+'use strict';
+
+angular.module('BBQueue.services').factory('adminQueueLoading', function () {
+    var loadingServerInProgress = false;
+    return {
+        isLoadingServerInProgress: function isLoadingServerInProgress() {
+            return loadingServerInProgress;
+        },
+        setLoadingServerInProgress: function setLoadingServerInProgress(bool) {
+            loadingServerInProgress = bool;
+        }
+    };
+});
+'use strict';
+
+/**
+ * @ngdoc service
+ * @name BBQueue.services.service:AdminQueueOptions
+ *
+ * @description
+ * Returns a set of admin queueing configuration options
+ */
+
+/**
+ * @ngdoc service
+ * @name BBQueue.services.service.AdminQueueOptionsProvider
+ *
+ * @description
+ * Provider
+ *
+ * @example
+ <pre module='BBQueue.services.service.AdminQueueOptionsProvider'>
+     angular.module('ExampleModule').config ['AdminQueueOptionsProvider', (AdminQueueOptionsProvider) ->
+        AdminQueueOptionsProvider.setOption('option', 'value')
+     ]
+ </pre>
+ */
+angular.module('BBQueue.services').provider('AdminQueueOptions', function () {
+    var options = {
+        use_default_states: true,
+        show_in_navigation: true,
+        parent_state: 'root'
+    };
+
+    this.setOption = function (option, value) {
+        if (options.hasOwnProperty(option)) {
+            options[option] = value;
+        }
+    };
+
+    this.getOption = function (option) {
+        if (options.hasOwnProperty(option)) {
+            return options[option];
+        }
+    };
+    this.$get = function () {
+        return options;
+    };
+});
+'use strict';
+
+angular.module('BBQueue.services').factory('AdminQueuerService', function ($q, BBModel) {
+    return {
+        query: function query(params) {
+            var defer = $q.defer();
+            params.company.$flush('queuers');
+            params.company.$get('queuers').then(function (collection) {
+                return collection.$get('queuers').then(function (queuers) {
+                    var models = Array.from(queuers).map(function (q) {
+                        return new BBModel.Admin.Queuer(q);
+                    });
+                    return defer.resolve(models);
+                }, function (err) {
+                    return defer.reject(err);
+                });
+            }, function (err) {
+                return defer.reject(err);
+            });
+            return defer.promise;
+        }
+    };
+});
+'use strict';
+
+// THIS IS CRUFTY AND SHOULD BE REMOVE WITH AN API UPDATE THAT TIDIES UP THE SCEMA RESPONE
+// fix the issues we have with the the sub client and question blocks being in doted notation, and
+// not in child objects
+angular.module('BBQueue.services').service('CheckSchema', function ($q, BBModel) {
+    return function (schema) {
+        for (var k in schema.properties) {
+            var v = schema.properties[k];
+            var vals = k.split(".");
+            if (vals[0] === "questions" && vals.length > 1) {
+                if (!schema.properties.questions) {
+                    schema.properties.questions = { type: "object", properties: {} };
+                }
+                if (!schema.properties.questions.properties[vals[1]]) {
+                    schema.properties.questions.properties[vals[1]] = {
+                        type: "object",
+                        properties: { answer: v }
+                    };
+                }
+            }
+            if (vals[0] === "client" && vals.length > 2) {
+                if (!schema.properties.client) {
+                    schema.properties.client = {
+                        type: "object",
+                        properties: { q: { type: "object", properties: {} } }
+                    };
+                }
+                if (schema.properties.client.properties) {
+                    if (!schema.properties.client.properties.q.properties[vals[2]]) {
+                        schema.properties.client.properties.q.properties[vals[2]] = {
+                            type: "object",
+                            properties: { answer: v }
+                        };
+                    }
+                }
+            }
+        }
+        return schema;
+    };
+});
+'use strict';
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+angular.module('BBQueue.services').factory('PusherQueue', function ($sessionStorage, AppConfig) {
+    return function () {
+        function PusherQueue() {
+            _classCallCheck(this, PusherQueue);
+        }
+
+        PusherQueue.subscribe = function subscribe(company) {
+            if (company != null && typeof Pusher !== 'undefined' && Pusher !== null) {
+                if (this.client == null) {
+                    this.pusher = new Pusher('c8d8cea659cc46060608', {
+                        authEndpoint: '/api/v1/push/' + company.id + '/pusher.json',
+                        auth: {
+                            headers: {
+                                'App-Id': AppConfig['App-Id'],
+                                'App-Key': AppConfig['App-Key'],
+                                'Auth-Token': $sessionStorage.getItem('auth_token')
+                            }
+                        }
+                    });
+                    return this.channel = this.pusher.subscribe('mobile-queue-' + company.id);
+                }
+            }
+        };
+
+        return PusherQueue;
+    }();
+});
 'use strict';
 
 var AddQueueCustomerController = function AddQueueCustomerController($scope, $log, AdminServiceService, AdminQueuerService, ModalForm, BBModel, $interval, $sessionStorage, $uibModal, $q, AdminBookingPopup) {
@@ -1292,7 +1367,7 @@ angular.module('BBQueue.directives').directive('bbQueueDashboard', function () {
 });
 'use strict';
 
-var QueuersController = function QueuersController($scope, $log, AdminQueuerService, AdminQueueService, ModalForm, $interval, $q, BBModel) {
+var QueuersController = function QueuersController($scope, $log, AdminQueuerService, AdminQueueService, ModalForm, $interval, $q, BBModel, AlertService, ErrorService, $translate) {
 
     $scope.loading = true;
 
@@ -1520,14 +1595,14 @@ var QueuersController = function QueuersController($scope, $log, AdminQueuerServ
         booking.$update(clone).then(function (res) {
             $scope.getQueuers();
         }, function (err) {
-            AlertService.danger({ msg: 'Something went wrong' });
+            AlertService.danger(ErrorService.getError('GENERIC'));
         });
     };
 
     $scope.newQueuerModal = function () {
         ModalForm.new({
             company: $scope.company,
-            title: 'New Queuer',
+            title: $translate.instant('ADMIN_DASHBOARD.QUEUE_PAGE.NEW_QUEUER'),
             new_rel: 'new_queuer',
             post_rel: 'queuers',
             success: function success(queuer) {
