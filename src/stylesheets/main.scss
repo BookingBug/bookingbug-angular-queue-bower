@@ -4,22 +4,34 @@
 
 .info-box.info-box-sm {
   min-height: 45px;
+  width: initial;
+  margin: 0px 0px 8px 15px;
+  @media (max-width: $screen-sm-max) {
+    margin: 0px 15px 8px 15px;
+  }
   small {
       font-size: 12px;
   }
-  margin-bottom: 0px;
   .info-box-icon {
-      height: 45px;
-      width: 45px;
-      font-size: 24px;
-      line-height: 45px;
+    height: 45px;
+    width: 45px;
+    font-size: 24px;
+    line-height: 45px;
   }
   .info-box-content {
       margin-left: 45px;
   }
 }
-li.info-box.info-box-sm {
-  margin-bottom: 8px;
+
+.server_column {
+  .info-box-icon {
+    margin: 5px;
+  }
+  li {
+    a {
+      cursor: pointer;
+    }
+  }
 }
 
 .qline_due {
