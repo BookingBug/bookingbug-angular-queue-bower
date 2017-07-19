@@ -141,7 +141,7 @@ angular.module('BBQueue').run(function ($injector, BBModel, $translate) {
 });
 'use strict';
 
-/*
+/**
  * @ngdoc controller
  * @name BBQueue.controllers.controller:QueueConciergePageCtrl
  *
@@ -151,10 +151,15 @@ angular.module('BBQueue').run(function ($injector, BBModel, $translate) {
 angular.module('BBQueue.controllers').controller('QueueConciergePageCtrl', ['$scope', '$state', function ($scope, $state) {}]);
 'use strict';
 
-var QueueServerController = function QueueServerController($scope, $log, AdminQueueService, ModalForm, BBModel, CheckSchema, $uibModal, AdminPersonService, $q, AdminQueuerService, Dialog, $translate) {
+var QueueServerController = function QueueServerController($scope, $log, AdminQueueService, ModalForm, BBModel, CheckSchema, $uibModal, AdminPersonService, $q, AdminQueuerService, adminQueueLoading, Dialog, $translate) {
+
+    $scope.adminQueueLoading = {
+        isLoadingServerInProgress: adminQueueLoading.isLoadingServerInProgress
+    };
+
+    $scope.loadingServer = false;
 
     var init = function init() {
-        $scope.loadingServer = false;
         var bookings = _.filter($scope.bookings.items, function (booking) {
             return booking.person_id == $scope.person.id;
         });
@@ -181,6 +186,7 @@ var QueueServerController = function QueueServerController($scope, $log, AdminQu
 
     $scope.startServingQueuer = function (person, queuer) {
         $scope.loadingServer = true;
+        adminQueueLoading.setLoadingServerInProgress(true);
         if (upcomingBookingCheck(person)) {
             Dialog.confirm({
                 title: $translate.instant('ADMIN_DASHBOARD.QUEUE_PAGE.NEXT_BOOKING_DIALOG_HEADING'),
@@ -192,10 +198,12 @@ var QueueServerController = function QueueServerController($scope, $log, AdminQu
                         if ($scope.selectQueuer) $scope.selectQueuer(null);
                         $scope.getQueuers();
                         $scope.loadingServer = false;
+                        adminQueueLoading.setLoadingServerInProgress(false);
                     });
                 },
                 fail: function fail() {
                     $scope.loadingServer = false;
+                    adminQueueLoading.setLoadingServerInProgress(false);
                 }
             });
         } else {
@@ -203,6 +211,7 @@ var QueueServerController = function QueueServerController($scope, $log, AdminQu
                 if ($scope.selectQueuer) $scope.selectQueuer(null);
                 $scope.getQueuers();
                 $scope.loadingServer = false;
+                adminQueueLoading.setLoadingServerInProgress(false);
             });
         }
     };
@@ -212,6 +221,7 @@ var QueueServerController = function QueueServerController($scope, $log, AdminQu
         var serving = person.serving;
 
         $scope.loadingServer = true;
+        adminQueueLoading.setLoadingServerInProgress(true);
         if (options.status) {
             person.finishServing().then(function () {
                 serving.$get('booking').then(function (booking) {
@@ -219,6 +229,10 @@ var QueueServerController = function QueueServerController($scope, $log, AdminQu
                     booking.current_multi_status = options.status;
                     booking.$update(booking).then(function (res) {
                         $scope.loadingServer = false;
+                        adminQueueLoading.setLoadingServerInProgress(false);
+                    }, function (err) {
+                        $scope.loadingServer = false;
+                        adminQueueLoading.setLoadingServerInProgress(false);
                     });
                 });
             });
@@ -230,6 +244,7 @@ var QueueServerController = function QueueServerController($scope, $log, AdminQu
                     finishServingOutcome(person, booking);
                 } else {
                     $scope.loadingServer = false;
+                    adminQueueLoading.setLoadingServerInProgress(false);
                 }
             });
         }
@@ -309,6 +324,7 @@ var QueueServerController = function QueueServerController($scope, $log, AdminQu
                 person.finishServing().finally(function () {
                     person.attendance_status = 1;
                     $scope.loadingServer = false;
+                    adminQueueLoading.setLoadingServerInProgress(false);
                 });
             });
         }, function (err) {
@@ -316,8 +332,12 @@ var QueueServerController = function QueueServerController($scope, $log, AdminQu
                 person.finishServing().then(function () {
                     person.attendance_status = 1;
                     $scope.loadingServer = false;
+                    adminQueueLoading.setLoadingServerInProgress(false);
                 });
-            } else $scope.loadingServer = false;
+            } else {
+                $scope.loadingServer = false;
+                adminQueueLoading.setLoadingServerInProgress(false);
+            }
         });
     };
 
@@ -628,7 +648,20 @@ angular.module('BBQueue.services').factory('AdminQueueService', function ($q, BB
 });
 'use strict';
 
-/*
+angular.module('BBQueue.services').factory('adminQueueLoading', function () {
+    var loadingServerInProgress = false;
+    return {
+        isLoadingServerInProgress: function isLoadingServerInProgress() {
+            return loadingServerInProgress;
+        },
+        setLoadingServerInProgress: function setLoadingServerInProgress(bool) {
+            loadingServerInProgress = bool;
+        }
+    };
+});
+'use strict';
+
+/**
  * @ngdoc service
  * @name BBQueue.services.service:AdminQueueOptions
  *
@@ -636,19 +669,19 @@ angular.module('BBQueue.services').factory('AdminQueueService', function ($q, BB
  * Returns a set of admin queueing configuration options
  */
 
-/*
+/**
  * @ngdoc service
- * @name BBQueue.services.service:AdminQueueOptionsProvider
+ * @name BBQueue.services.service.AdminQueueOptionsProvider
  *
  * @description
  * Provider
  *
  * @example
- <example>
- angular.module('ExampleModule').config ['AdminQueueOptionsProvider', (AdminQueueOptionsProvider) ->
- AdminQueueOptionsProvider.setOption('option', 'value')
- ]
- </example>
+ <pre module='BBQueue.services.service.AdminQueueOptionsProvider'>
+     angular.module('ExampleModule').config ['AdminQueueOptionsProvider', (AdminQueueOptionsProvider) ->
+        AdminQueueOptionsProvider.setOption('option', 'value')
+     ]
+ </pre>
  */
 angular.module('BBQueue.services').provider('AdminQueueOptions', function () {
     var options = {
@@ -769,7 +802,7 @@ angular.module('BBQueue.services').factory('PusherQueue', function ($sessionStor
 });
 'use strict';
 
-/*
+/**
 * @ngdoc overview
 * @name BBQueue.translations
 *
@@ -791,23 +824,98 @@ angular.module('BBQueue.translations').config(['$translateProvider', function ($
                 }
             },
             'QUEUE_PAGE': {
-                'PEOPLE': 'Colleagues',
-                'PERSON': 'Colleague',
-                'DATETIME': 'Date Time',
-                'DETAILS': 'Details',
-                'CLIENT': 'Client',
-                'NAME': 'Name',
-                'EMAIL': 'Email',
-                'MOBILE': 'Mobile',
-                'PHONE': 'Phone',
-                'ACTIONS': 'Actions',
-                'EDIT': 'Edit',
-                'ABOUT': 'About',
-                'ADDRESS': 'Address',
-                'UPCOMING_BOOKINGS': 'Upcoming Bookings',
-                'PAST_BOOKINGS': 'Past Bookings',
                 'NEXT_BOOKING_DIALOG_HEADING': 'Upcoming Appointment',
-                'NEXT_BOOKING_DIALOG_BODY': '{{name}} has an appointment at {{time}}. Are you sure they want to serve another customer beforehand?'
+                'NEXT_BOOKING_DIALOG_BODY': '{{name}} has an appointment at {{time}}. Are you sure they want to serve another customer beforehand?',
+                'NEW_QUEUER': 'New Queuer',
+                'ADD_CUSTOMER_FORM': {
+                    'TITLE': "Add Customer",
+                    'FIRST_NAME_LBL': "First Name *",
+                    'FIRST_NAME_PLACEHOLDER': "First Name",
+                    'LAST_NAME_LBL': "@:COMMON.TERMINOLOGY.LAST_NAME",
+                    'LAST_NAME_PLACEHOLDER': "@:COMMON.TERMINOLOGY.LAST_NAME",
+                    'MOBILE_LBL': "@:COMMON.TERMINOLOGY.MOBILE",
+                    'MOBILE_PLACEHOLDER': "@:COMMON.TERMINOLOGY.MOBILE",
+                    'NOTES_LBL': "Notes",
+                    'NOTES_PLACEHOLDER': "Notes",
+                    'MAKE_APPOINTMENT_BTN': "Make Appointment",
+                    'SERVE_NOW_BTN': "Serve Now",
+                    'ADD_TO_QUEUE_BTN': "Add to Queue"
+                },
+                'SERVE_NOW_MODAL': {
+                    'TITLE': 'Serve Now',
+                    'PICK_A_SERVICE_LBL': "Pick a service",
+                    'PICK_A_SERVER_LBL': "Pick a server",
+                    'DISMISS_BTN': 'Dismiss',
+                    'SERVE_NOW_BTN': "Serve Now"
+                },
+                'PICK_A_SERVICE_MODAL': {
+                    'TITLE': 'Pick a Service',
+                    'CANCEL_BTN': 'Cancel'
+                },
+                'FINISH_SERVING_OUTCOME_MODAL': {
+                    'EDIT_CUSTOMER_BTN': 'Edit Customer',
+                    'SAVE_AND_FINISH_SERVING_BTN': 'Save and Finish Serving'
+                },
+                'QUEUE_SERVER_ACTIONS': {
+                    'ACTIONS_BTN': 'Actions',
+                    'TOGGLE_DROPDOWN_CARET_LBL': 'Toggle Dropdown',
+                    'SET_FREE': 'Set Free',
+                    'SET_AS_AVAILABLE': 'Set as Available',
+                    'AVAILABLE_END_BREAK': 'Available / End Break',
+                    'END_SHIFT': 'End Shift',
+                    'ON_BREAK_FOR': 'On Break for',
+                    'MARK_AS_BUSY_FOR': 'Mark as busy for',
+                    'FINISH_SERVING_BTN': 'Finish Serving',
+                    'SERVE_BTN': 'Serve',
+                    'SERVE_NEXT_BTN': 'Serve Next',
+                    'MARK_ABSENT_BTN': 'Mark Absent'
+                },
+                'QUEUE_SERVER_LIST_ITEM': {
+                    'AVAILABLE': 'Available',
+                    'ON_BREAK_UNTIL': 'On break until',
+                    'ESTIMATED': 'estimated',
+                    'BUSY_UNTIL': 'Busy until',
+                    'SERVING': 'Serving',
+                    'SINCE': 'Since',
+                    'FINISH_ESTIMATE': 'Finish Estimate',
+                    'NEXT_APPOINTMENT': 'Next appointment'
+                },
+                'QUEUERS': {
+                    'ARRIVED_AT': 'Arrived at',
+                    'DUE_AT': 'Due at',
+                    'SERVICE': 'Service',
+                    'CHECK_IN': 'Check in',
+                    'NO_SHOW': 'No Show',
+                    'WALKED_OUT': 'Walked out'
+                },
+                'SELECTED_QUEUER': {
+                    'QUEUER': 'Queuer',
+                    'DUE': 'Due',
+                    'POSITION': 'Position',
+                    'ARRIVED': 'Arrived',
+                    'ESTIMATED_WAIT_TIME': 'Estimated Wait Time ',
+                    'MINUTE': 'minute',
+                    'SERVICE': 'Service',
+                    'NAME': 'Name',
+                    'MOBILE': 'Mobile',
+                    'EMAIL': 'Email',
+                    'NOTES': 'Notes',
+                    'TOGGLE_DROPDOWN_CARET_LBL': 'Toggle Dropdown',
+                    'BACK_BTN': 'Back',
+                    'FORWARD_BTN': 'Forward',
+                    'LEAVE_QUEUE_BTN': 'Leave Queue',
+                    'EDIT_CUSTOMER_BTN': 'Edit Customer',
+                    'CLOSE_BTN': 'Close'
+                },
+                'SERVER': {
+                    'SERVING': 'Serving',
+                    'APPOINTMENT_STARTED_AT': 'Appointment started at',
+                    'APPOINTMENT_DUE_TO_FINISH_AT': 'Appointment due to finish at',
+                    'EXTEND_APPOINTMENT': 'Extend Appointment',
+                    'TOGGLE_DROPDOWN_CARET_LBL': 'Toggle Dropdown',
+                    'IDLE': 'Idle',
+                    'NEXT_APPOINTMENT': 'Next appointment'
+                }
             }
         }
     });
@@ -1259,7 +1367,7 @@ angular.module('BBQueue.directives').directive('bbQueueDashboard', function () {
 });
 'use strict';
 
-var QueuersController = function QueuersController($scope, $log, AdminQueuerService, AdminQueueService, ModalForm, $interval, $q, BBModel) {
+var QueuersController = function QueuersController($scope, $log, AdminQueuerService, AdminQueueService, ModalForm, $interval, $q, BBModel, AlertService, ErrorService, $translate) {
 
     $scope.loading = true;
 
@@ -1487,14 +1595,14 @@ var QueuersController = function QueuersController($scope, $log, AdminQueuerServ
         booking.$update(clone).then(function (res) {
             $scope.getQueuers();
         }, function (err) {
-            AlertService.danger({ msg: 'Something went wrong' });
+            AlertService.danger(ErrorService.getError('GENERIC'));
         });
     };
 
     $scope.newQueuerModal = function () {
         ModalForm.new({
             company: $scope.company,
-            title: 'New Queuer',
+            title: $translate.instant('ADMIN_DASHBOARD.QUEUE_PAGE.NEW_QUEUER'),
             new_rel: 'new_queuer',
             post_rel: 'queuers',
             success: function success(queuer) {
