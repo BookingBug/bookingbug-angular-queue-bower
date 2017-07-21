@@ -141,79 +141,6 @@ angular.module('BBQueue').run(function ($injector, BBModel, $translate) {
 });
 'use strict';
 
-angular.module('BBQueue.directives').directive('countdown', function () {
-
-    var controller = function controller($scope) {
-
-        $scope.$watch('$$value$$', function (value) {
-            if (value != null) {
-                return $scope.updateModel(value);
-            }
-        });
-    };
-
-    var link = function link(scope, element, attrs, ngModel) {
-
-        ngModel.$render = function () {
-            if (ngModel.$viewValue) {
-                return scope.$$value$$ = ngModel.$viewValue;
-            }
-        };
-
-        scope.updateModel = function (value) {
-            ngModel.$setViewValue(value);
-
-            var secs = parseInt((value % 60).toFixed(0));
-            var mins = parseInt((value / 60).toFixed(0));
-
-            if (mins > 1) {
-                return scope.due = mins + ' Mins';
-            } else if (mins === 1) {
-                return scope.due = "1 Min";
-            } else if (mins === 0 && secs > 10) {
-                return scope.due = "< 1 Min";
-            } else {
-                return scope.due = "Next Up";
-            }
-        };
-
-        return scope.due = "";
-    };
-
-    return {
-        require: 'ngModel',
-        link: link,
-        controller: controller,
-        scope: {
-            min: '@'
-        },
-        template: '{{due}}'
-    };
-});
-'use strict';
-
-angular.module('BBQueue.directives').directive('bbQueueServer', function (PusherQueue) {
-    return {
-        controller: 'bbQueueServerController',
-        link: function link(scope, element, attrs) {
-            PusherQueue.subscribe(scope.bb.company);
-            PusherQueue.channel.bind('notification', function (data) {
-                scope.updateQueuer();
-            });
-            scope.updateQueuer();
-        }
-    };
-});
-'use strict';
-
-angular.module('BBQueue.directives').directive('bbServerListItem', function () {
-    return {
-        controller: 'bbQueueServerController',
-        templateUrl: 'queue/queue_server_list_item.html'
-    };
-});
-'use strict';
-
 /**
  * @ngdoc controller
  * @name BBQueue.controllers.controller:QueueConciergePageCtrl
@@ -445,6 +372,79 @@ var QueueServerController = function QueueServerController($scope, $log, AdminQu
 };
 
 angular.module('BBQueue.controllers').controller('bbQueueServerController', QueueServerController);
+'use strict';
+
+angular.module('BBQueue.directives').directive('countdown', function () {
+
+    var controller = function controller($scope) {
+
+        $scope.$watch('$$value$$', function (value) {
+            if (value != null) {
+                return $scope.updateModel(value);
+            }
+        });
+    };
+
+    var link = function link(scope, element, attrs, ngModel) {
+
+        ngModel.$render = function () {
+            if (ngModel.$viewValue) {
+                return scope.$$value$$ = ngModel.$viewValue;
+            }
+        };
+
+        scope.updateModel = function (value) {
+            ngModel.$setViewValue(value);
+
+            var secs = parseInt((value % 60).toFixed(0));
+            var mins = parseInt((value / 60).toFixed(0));
+
+            if (mins > 1) {
+                return scope.due = mins + ' Mins';
+            } else if (mins === 1) {
+                return scope.due = "1 Min";
+            } else if (mins === 0 && secs > 10) {
+                return scope.due = "< 1 Min";
+            } else {
+                return scope.due = "Next Up";
+            }
+        };
+
+        return scope.due = "";
+    };
+
+    return {
+        require: 'ngModel',
+        link: link,
+        controller: controller,
+        scope: {
+            min: '@'
+        },
+        template: '{{due}}'
+    };
+});
+'use strict';
+
+angular.module('BBQueue.directives').directive('bbQueueServer', function (PusherQueue) {
+    return {
+        controller: 'bbQueueServerController',
+        link: function link(scope, element, attrs) {
+            PusherQueue.subscribe(scope.bb.company);
+            PusherQueue.channel.bind('notification', function (data) {
+                scope.updateQueuer();
+            });
+            scope.updateQueuer();
+        }
+    };
+});
+'use strict';
+
+angular.module('BBQueue.directives').directive('bbServerListItem', function () {
+    return {
+        controller: 'bbQueueServerController',
+        templateUrl: 'queue/queue_server_list_item.html'
+    };
+});
 "use strict";
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
