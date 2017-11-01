@@ -40,6 +40,7 @@ angular.module('BBQueue').run(function (RuntimeStates, AdminQueueOptions, SideNa
                     return company.$getPeople();
                 },
                 bookings: function bookings(company, BBModel) {
+                    if (!AdminQueueOptions.mix_bookings) return { items: [] };
                     var params = {
                         company: company,
                         start_date: moment().format('YYYY-MM-DD'),
@@ -78,7 +79,7 @@ angular.module('BBQueue').run(function (RuntimeStates, AdminQueueOptions, SideNa
                     }
                 };
 
-                pusherSubscribe();
+                if (AdminQueueOptions.mix_bookings) pusherSubscribe();
             },
 
             templateUrl: "queue/index.html",
@@ -142,79 +143,6 @@ angular.module('BBQueue').run(function ($injector, BBModel, $translate) {
             }
         }
     }
-});
-'use strict';
-
-angular.module('BBQueue.directives').directive('countdown', function () {
-
-    var controller = function controller($scope) {
-
-        $scope.$watch('$$value$$', function (value) {
-            if (value != null) {
-                return $scope.updateModel(value);
-            }
-        });
-    };
-
-    var link = function link(scope, element, attrs, ngModel) {
-
-        ngModel.$render = function () {
-            if (ngModel.$viewValue) {
-                return scope.$$value$$ = ngModel.$viewValue;
-            }
-        };
-
-        scope.updateModel = function (value) {
-            ngModel.$setViewValue(value);
-
-            var secs = parseInt((value % 60).toFixed(0));
-            var mins = parseInt((value / 60).toFixed(0));
-
-            if (mins > 1) {
-                return scope.due = mins + ' Mins';
-            } else if (mins === 1) {
-                return scope.due = "1 Min";
-            } else if (mins === 0 && secs > 10) {
-                return scope.due = "< 1 Min";
-            } else {
-                return scope.due = "Next Up";
-            }
-        };
-
-        return scope.due = "";
-    };
-
-    return {
-        require: 'ngModel',
-        link: link,
-        controller: controller,
-        scope: {
-            min: '@'
-        },
-        template: '{{due}}'
-    };
-});
-'use strict';
-
-angular.module('BBQueue.directives').directive('bbQueueServer', function (PusherQueue) {
-    return {
-        controller: 'bbQueueServerController',
-        link: function link(scope, element, attrs) {
-            PusherQueue.subscribe(scope.bb.company);
-            PusherQueue.channel.bind('notification', function (data) {
-                scope.updateQueuer();
-            });
-            scope.updateQueuer();
-        }
-    };
-});
-'use strict';
-
-angular.module('BBQueue.directives').directive('bbServerListItem', function () {
-    return {
-        controller: 'bbQueueServerController',
-        templateUrl: 'queue/queue_server_list_item.html'
-    };
 });
 'use strict';
 
@@ -313,8 +241,11 @@ var QueueServerController = function QueueServerController($scope, $log, AdminQu
                     });
                 });
             });
+            $scope.loadingServer = false;
+            adminQueueLoading.setLoadingServerInProgress(false);
         } else {
             serving.$get('booking').then(function (booking) {
+
                 booking = new BBModel.Admin.Booking(booking);
                 booking.current_multi_status = options.status;
                 if (booking.$has('edit')) {
@@ -399,18 +330,20 @@ var QueueServerController = function QueueServerController($scope, $log, AdminQu
         modalInstance.result.then(function () {
             booking.$update(booking).then(function () {
                 person.finishServing().finally(function () {
-                    person.attendance_status = 1;
+                    //                    person.attendance_status = 1;
                     $scope.loadingServer = false;
                     adminQueueLoading.setLoadingServerInProgress(false);
                 });
             });
+            $scope.loadingServer = false;
+            adminQueueLoading.setLoadingServerInProgress(false);
         }, function (err) {
             if (err === 'No outcomes') {
                 person.finishServing().then(function () {
-                    person.attendance_status = 1;
-                    $scope.loadingServer = false;
-                    adminQueueLoading.setLoadingServerInProgress(false);
+                    //                    person.attendance_status = 1;
                 });
+                $scope.loadingServer = false;
+                adminQueueLoading.setLoadingServerInProgress(false);
             } else {
                 $scope.loadingServer = false;
                 adminQueueLoading.setLoadingServerInProgress(false);
@@ -449,6 +382,79 @@ var QueueServerController = function QueueServerController($scope, $log, AdminQu
 };
 
 angular.module('BBQueue.controllers').controller('bbQueueServerController', QueueServerController);
+'use strict';
+
+angular.module('BBQueue.directives').directive('countdown', function () {
+
+    var controller = function controller($scope) {
+
+        $scope.$watch('$$value$$', function (value) {
+            if (value != null) {
+                return $scope.updateModel(value);
+            }
+        });
+    };
+
+    var link = function link(scope, element, attrs, ngModel) {
+
+        ngModel.$render = function () {
+            if (ngModel.$viewValue) {
+                return scope.$$value$$ = ngModel.$viewValue;
+            }
+        };
+
+        scope.updateModel = function (value) {
+            ngModel.$setViewValue(value);
+
+            var secs = parseInt((value % 60).toFixed(0));
+            var mins = parseInt((value / 60).toFixed(0));
+
+            if (mins > 1) {
+                return scope.due = mins + ' Mins';
+            } else if (mins === 1) {
+                return scope.due = "1 Min";
+            } else if (mins === 0 && secs > 10) {
+                return scope.due = "< 1 Min";
+            } else {
+                return scope.due = "Next Up";
+            }
+        };
+
+        return scope.due = "";
+    };
+
+    return {
+        require: 'ngModel',
+        link: link,
+        controller: controller,
+        scope: {
+            min: '@'
+        },
+        template: '{{due}}'
+    };
+});
+'use strict';
+
+angular.module('BBQueue.directives').directive('bbQueueServer', function (PusherQueue) {
+    return {
+        controller: 'bbQueueServerController',
+        link: function link(scope, element, attrs) {
+            PusherQueue.subscribe(scope.bb.company);
+            PusherQueue.channel.bind('notification', function (data) {
+                scope.updateQueuer();
+            });
+            scope.updateQueuer();
+        }
+    };
+});
+'use strict';
+
+angular.module('BBQueue.directives').directive('bbServerListItem', function () {
+    return {
+        controller: 'bbQueueServerController',
+        templateUrl: 'queue/queue_server_list_item.html'
+    };
+});
 "use strict";
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -479,7 +485,7 @@ function _possibleConstructorReturn(self, call) { if (!self) { throw new Referen
 
 function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
-angular.module('BB.Models').factory("AdminQueuerModel", function ($q, BBModel, BaseModel) {
+angular.module('BB.Models').factory("AdminQueuerModel", function ($q, BBModel, BaseModel, MutexService) {
 
     return function (_BaseModel) {
         _inherits(Admin_Queuer, _BaseModel);
@@ -540,39 +546,52 @@ angular.module('BB.Models').factory("AdminQueuerModel", function ($q, BBModel, B
         Admin_Queuer.prototype.startServing = function startServing(person) {
             var _this2 = this;
 
+            this.attendance_status = 4; // immeditley mark this as serveing
             var defer = $q.defer();
-            if (this.$has('start_serving')) {
-                console.log('start serving url ', this.$href('start_serving'));
-                person.$flush('self');
-                this.$post('start_serving', { person_id: person.id }).then(function (q) {
-                    person.$get('self').then(function (p) {
-                        return person.updateModel(p);
+            MutexService.getLock().then(function (mutex) {
+                if (_this2.$has('start_serving')) {
+                    console.log('start serving url ', _this2.$href('start_serving'));
+                    person.$flush('self');
+                    _this2.$post('start_serving', { person_id: person.id }).then(function (q) {
+                        person.$get('self').then(function (p) {
+                            return person.updateModel(p);
+                        });
+                        _this2.updateModel(q);
+                        MutexService.unlock(mutex);
+                        return defer.resolve(_this2);
+                    }, function (err) {
+                        MutexService.unlock(mutex);
+                        return defer.reject(err);
                     });
-                    _this2.updateModel(q);
-                    return defer.resolve(_this2);
-                }, function (err) {
-                    return defer.reject(err);
-                });
-            } else {
-                defer.reject('start_serving link not available');
-            }
+                } else {
+                    MutexService.unlock(mutex);
+                    defer.reject('start_serving link not available');
+                }
+            });
             return defer.promise;
         };
 
         Admin_Queuer.prototype.finishServing = function finishServing() {
             var _this3 = this;
 
+            this.attendance_status = 1; // immeditley mark this as available
+            this.serving = null;
             var defer = $q.defer();
-            if (this.$has('finish_serving')) {
-                this.$post('finish_serving').then(function (q) {
-                    _this3.updateModel(q);
-                    return defer.resolve(_this3);
-                }, function (err) {
-                    return defer.reject(err);
-                });
-            } else {
-                defer.reject('finish_serving link not available');
-            }
+            MutexService.getLock().then(function (mutex) {
+                if (_this3.$has('finish_serving')) {
+                    _this3.$post('finish_serving').then(function (q) {
+                        _this3.updateModel(q);
+                        MutexService.unlock(mutex);
+                        return defer.resolve(_this3);
+                    }, function (err) {
+                        MutexService.unlock(mutex);
+                        return defer.reject(err);
+                    });
+                } else {
+                    MutexService.unlock(mutex);
+                    defer.reject('finish_serving link not available');
+                }
+            });
             return defer.promise;
         };
 
@@ -691,7 +710,8 @@ angular.module('BBQueue.services').provider('AdminQueueOptions', function () {
     var options = {
         use_default_states: true,
         show_in_navigation: true,
-        parent_state: 'root'
+        parent_state: 'root',
+        mix_bookings: true
     };
 
     this.setOption = function (option, value) {
@@ -929,12 +949,17 @@ angular.module('BBQueue.translations').config(['$translateProvider', function ($
 var AddQueueCustomerController = function AddQueueCustomerController($scope, $log, AdminServiceService, AdminQueuerService, ModalForm, BBModel, $interval, $sessionStorage, $uibModal, $q, AdminBookingPopup, bbLocale) {
 
     var addQueuer = function addQueuer(form) {
+
         var defer = $q.defer();
         var service = form.service;
         var person = form.server;
         $scope.new_queuer.service_id = service.id;
+        $scope.new_queuer.service = service;
         $scope.new_queuer.locale = bbLocale.getLocale();
-        service.$post('queuers', {}, $scope.new_queuer).then(function (response) {
+        var new_queuer = $scope.new_queuer;
+        $scope.$emit('addPendingQueuer', new_queuer);
+        resetQueuer();
+        service.$post('queuers', {}, new_queuer).then(function (response) {
             var queuer = new BBModel.Admin.Queuer(response);
             if (person) {
                 queuer.startServing(person).then(function () {
@@ -971,7 +996,7 @@ var AddQueueCustomerController = function AddQueueCustomerController($scope, $lo
             }
         });
 
-        modalInstance.result.then(addQueuer).then(resetQueuer).finally(function () {
+        modalInstance.result.then(addQueuer).finally(function () {
             return $scope.loading = false;
         });
     };
@@ -1390,6 +1415,44 @@ var QueuersController = function QueuersController($scope, $log, AdminQueuerServ
         return defer.promise;
     };
 
+    // add a pending queuer - one we are still waiting for the server to confirm
+    $scope.$on('addPendingQueuer', function (event, queuer) {
+
+        if (queuer && queuer.service && queuer.service.client_queue_id) {
+            queuer.ticket_number = "---";
+            queuer.pending = true;
+            queuer.service_name = queuer.service.name;
+            var _iteratorNormalCompletion = true;
+            var _didIteratorError = false;
+            var _iteratorError = undefined;
+
+            try {
+                for (var _iterator = Array.from($scope.queues)[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+                    var queue = _step.value;
+
+                    if (queue.id == queuer.service.client_queue_id) {
+                        queuer.position = 1;
+                        if (queue.waiting_queuers.length > 0) queuer.position = queue.waiting_queuers[queue.waiting_queuers.length - 1].position + 1;
+                        queue.waiting_queuers.push({ type: "Q", data: queuer, position: queuer.position });
+                    }
+                }
+            } catch (err) {
+                _didIteratorError = true;
+                _iteratorError = err;
+            } finally {
+                try {
+                    if (!_iteratorNormalCompletion && _iterator.return) {
+                        _iterator.return();
+                    }
+                } finally {
+                    if (_didIteratorError) {
+                        throw _iteratorError;
+                    }
+                }
+            }
+        }
+    });
+
     $scope.getQueuers = function () {
         if ($scope.waiting_for_queuers) {
             return;
@@ -1423,78 +1486,18 @@ var QueuersController = function QueuersController($scope, $log, AdminQueuerServ
             $scope.queuers = $scope.new_queuers;
             $scope.queues = $scope.new_queues;
             $scope.waiting_queuers = [];
-            var _iteratorNormalCompletion = true;
-            var _didIteratorError = false;
-            var _iteratorError = undefined;
-
-            try {
-                for (var _iterator = Array.from($scope.queuers)[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-                    var queuer = _step.value;
-
-                    queuer.remaining();
-                    if (queuer.position > 0) {
-                        $scope.waiting_queuers.push({ type: "Q", data: queuer, position: queuer.position });
-                    }
-                }
-            } catch (err) {
-                _didIteratorError = true;
-                _iteratorError = err;
-            } finally {
-                try {
-                    if (!_iteratorNormalCompletion && _iterator.return) {
-                        _iterator.return();
-                    }
-                } finally {
-                    if (_didIteratorError) {
-                        throw _iteratorError;
-                    }
-                }
-            }
-
-            $scope.waiting_queuers = _.sortBy($scope.waiting_queuers, function (x) {
-                return x.position;
-            });
-            $scope.waiting_for_queuers = false;
-
             var _iteratorNormalCompletion2 = true;
             var _didIteratorError2 = false;
             var _iteratorError2 = undefined;
 
             try {
-                for (var _iterator2 = Array.from($scope.queues)[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
-                    var q = _step2.value;
+                for (var _iterator2 = Array.from($scope.queuers)[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+                    var queuer = _step2.value;
 
-                    q.waiting_queuers = [];
-                    var _iteratorNormalCompletion3 = true;
-                    var _didIteratorError3 = false;
-                    var _iteratorError3 = undefined;
-
-                    try {
-                        for (var _iterator3 = Array.from($scope.waiting_queuers)[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
-                            queuer = _step3.value;
-
-                            if (queuer.type === "Q" && queuer.data.client_queue_id === q.id || queuer.type === "B") {
-                                q.waiting_queuers.push(queuer);
-                            }
-                        }
-                    } catch (err) {
-                        _didIteratorError3 = true;
-                        _iteratorError3 = err;
-                    } finally {
-                        try {
-                            if (!_iteratorNormalCompletion3 && _iterator3.return) {
-                                _iterator3.return();
-                            }
-                        } finally {
-                            if (_didIteratorError3) {
-                                throw _iteratorError3;
-                            }
-                        }
+                    queuer.remaining();
+                    if (queuer.position > 0) {
+                        $scope.waiting_queuers.push({ type: "Q", data: queuer, position: queuer.position });
                     }
-
-                    q.waiting_queuers = _.sortBy(q.waiting_queuers, function (x) {
-                        return x.position;
-                    });
                 }
             } catch (err) {
                 _didIteratorError2 = true;
@@ -1507,6 +1510,66 @@ var QueuersController = function QueuersController($scope, $log, AdminQueuerServ
                 } finally {
                     if (_didIteratorError2) {
                         throw _iteratorError2;
+                    }
+                }
+            }
+
+            $scope.waiting_queuers = _.sortBy($scope.waiting_queuers, function (x) {
+                return x.position;
+            });
+            $scope.waiting_for_queuers = false;
+
+            var _iteratorNormalCompletion3 = true;
+            var _didIteratorError3 = false;
+            var _iteratorError3 = undefined;
+
+            try {
+                for (var _iterator3 = Array.from($scope.queues)[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
+                    var q = _step3.value;
+
+                    q.waiting_queuers = [];
+                    var _iteratorNormalCompletion4 = true;
+                    var _didIteratorError4 = false;
+                    var _iteratorError4 = undefined;
+
+                    try {
+                        for (var _iterator4 = Array.from($scope.waiting_queuers)[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
+                            queuer = _step4.value;
+
+                            if (queuer.type === "Q" && queuer.data.client_queue_id === q.id || queuer.type === "B") {
+                                q.waiting_queuers.push(queuer);
+                            }
+                        }
+                    } catch (err) {
+                        _didIteratorError4 = true;
+                        _iteratorError4 = err;
+                    } finally {
+                        try {
+                            if (!_iteratorNormalCompletion4 && _iterator4.return) {
+                                _iterator4.return();
+                            }
+                        } finally {
+                            if (_didIteratorError4) {
+                                throw _iteratorError4;
+                            }
+                        }
+                    }
+
+                    q.waiting_queuers = _.sortBy(q.waiting_queuers, function (x) {
+                        return x.position;
+                    });
+                }
+            } catch (err) {
+                _didIteratorError3 = true;
+                _iteratorError3 = err;
+            } finally {
+                try {
+                    if (!_iteratorNormalCompletion3 && _iterator3.return) {
+                        _iterator3.return();
+                    }
+                } finally {
+                    if (_didIteratorError3) {
+                        throw _iteratorError3;
                     }
                 }
             }
@@ -1559,13 +1622,13 @@ var QueuersController = function QueuersController($scope, $log, AdminQueuerServ
 
         BBModel.Admin.Booking.$query(params).then(function (res) {
             var bookings = [];
-            var _iteratorNormalCompletion4 = true;
-            var _didIteratorError4 = false;
-            var _iteratorError4 = undefined;
+            var _iteratorNormalCompletion5 = true;
+            var _didIteratorError5 = false;
+            var _iteratorError5 = undefined;
 
             try {
-                for (var _iterator4 = Array.from(res.items)[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
-                    var item = _step4.value;
+                for (var _iterator5 = Array.from(res.items)[Symbol.iterator](), _step5; !(_iteratorNormalCompletion5 = (_step5 = _iterator5.next()).done); _iteratorNormalCompletion5 = true) {
+                    var item = _step5.value;
 
                     if (item.status !== 3) {
                         // not blocked
@@ -1573,16 +1636,16 @@ var QueuersController = function QueuersController($scope, $log, AdminQueuerServ
                     }
                 }
             } catch (err) {
-                _didIteratorError4 = true;
-                _iteratorError4 = err;
+                _didIteratorError5 = true;
+                _iteratorError5 = err;
             } finally {
                 try {
-                    if (!_iteratorNormalCompletion4 && _iterator4.return) {
-                        _iterator4.return();
+                    if (!_iteratorNormalCompletion5 && _iterator5.return) {
+                        _iterator5.return();
                     }
                 } finally {
-                    if (_didIteratorError4) {
-                        throw _iteratorError4;
+                    if (_didIteratorError5) {
+                        throw _iteratorError5;
                     }
                 }
             }
