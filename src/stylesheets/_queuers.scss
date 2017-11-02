@@ -29,12 +29,20 @@
 
   .qline_info {
     float:left;
+    width: calc(100% - 210px);
+    overflow: hidden;
+    height: 40px;
+
   }
 
   .waiting-queuer .ticket-number {
     float: left;
     font-size: 20pt;
     padding-right: 7px;
+  }
+
+  .bg-green.pending {
+    background-color: #888 !important;
   }
 
 }
