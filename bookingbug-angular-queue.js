@@ -649,126 +649,6 @@ angular.module('BB.Models').factory("AdminQueuerModel", function ($q, BBModel, B
 });
 'use strict';
 
-/**
-* @ngdoc overview
-* @name BBQueue.translations
-*
-* @description
-* Translations for the queue people module
-*/
-angular.module('BBQueue.translations').config(['$translateProvider', function ($translateProvider) {
-    return $translateProvider.translations('en', {
-        'SIDE_NAV_QUEUING': 'QUEUING',
-        'ADMIN_DASHBOARD': {
-            'SIDE_NAV': {
-                'QUEUE_PAGE': {
-                    'QUEUE': 'Concierge',
-                    'REPORT': 'Queue Reports',
-                    'BOOKING_REPORT': 'Booking Reports',
-                    'PERF_REPORT': 'Performance Reports',
-                    'MAP_REPORT': 'Map Reports',
-                    'LIST': 'Queue Display'
-                }
-            },
-            'QUEUE_PAGE': {
-                'NEXT_BOOKING_DIALOG_HEADING': 'Upcoming Appointment',
-                'NEXT_BOOKING_DIALOG_BODY': '{{name}} has an appointment at {{time}}. Are you sure they want to serve another customer beforehand?',
-                'NEW_QUEUER': 'New Queuer',
-                'ADD_CUSTOMER_FORM': {
-                    'TITLE': "Add Customer",
-                    'FIRST_NAME_LBL': "First Name *",
-                    'FIRST_NAME_PLACEHOLDER': "First Name",
-                    'LAST_NAME_LBL': "@:COMMON.TERMINOLOGY.LAST_NAME",
-                    'LAST_NAME_PLACEHOLDER': "@:COMMON.TERMINOLOGY.LAST_NAME",
-                    'MOBILE_LBL': "@:COMMON.TERMINOLOGY.MOBILE",
-                    'MOBILE_PLACEHOLDER': "@:COMMON.TERMINOLOGY.MOBILE",
-                    'NOTES_LBL': "Notes",
-                    'NOTES_PLACEHOLDER': "Notes",
-                    'MAKE_APPOINTMENT_BTN': "Make Appointment",
-                    'SERVE_NOW_BTN': "Serve Now",
-                    'ADD_TO_QUEUE_BTN': "Add to Queue"
-                },
-                'SERVE_NOW_MODAL': {
-                    'TITLE': 'Serve Now',
-                    'PICK_A_SERVICE_LBL': "Pick a service",
-                    'PICK_A_SERVER_LBL': "Pick a server",
-                    'DISMISS_BTN': 'Dismiss',
-                    'SERVE_NOW_BTN': "Serve Now"
-                },
-                'PICK_A_SERVICE_MODAL': {
-                    'TITLE': 'Pick a Service',
-                    'CANCEL_BTN': 'Cancel'
-                },
-                'FINISH_SERVING_OUTCOME_MODAL': {
-                    'EDIT_CUSTOMER_BTN': 'Edit Customer',
-                    'SAVE_AND_FINISH_SERVING_BTN': 'Save and Finish Serving'
-                },
-                'QUEUE_SERVER_ACTIONS': {
-                    'ACTIONS_BTN': 'Actions',
-                    'TOGGLE_DROPDOWN_CARET_LBL': 'Toggle Dropdown',
-                    'SET_FREE': 'Set Free',
-                    'SET_AS_AVAILABLE': 'Set as Available',
-                    'AVAILABLE_END_BREAK': 'Available / End Break',
-                    'END_SHIFT': 'End Shift',
-                    'ON_BREAK_FOR': 'On Break for',
-                    'MARK_AS_BUSY_FOR': 'Mark as busy for',
-                    'FINISH_SERVING_BTN': 'Finish Serving',
-                    'SERVE_BTN': 'Serve',
-                    'SERVE_NEXT_BTN': 'Serve Next',
-                    'MARK_ABSENT_BTN': 'Mark Absent'
-                },
-                'QUEUE_SERVER_LIST_ITEM': {
-                    'AVAILABLE': 'Available',
-                    'ON_BREAK_UNTIL': 'On break until',
-                    'ESTIMATED': 'estimated',
-                    'BUSY_UNTIL': 'Busy until',
-                    'SERVING': 'Serving',
-                    'SINCE': 'Since',
-                    'FINISH_ESTIMATE': 'Finish Estimate',
-                    'NEXT_APPOINTMENT': 'Next appointment'
-                },
-                'QUEUERS': {
-                    'ARRIVED_AT': 'Arrived at',
-                    'DUE_AT': 'Due at',
-                    'SERVICE': 'Service',
-                    'CHECK_IN': 'Check in',
-                    'NO_SHOW': 'No Show',
-                    'WALKED_OUT': 'Walked out'
-                },
-                'SELECTED_QUEUER': {
-                    'QUEUER': 'Queuer',
-                    'DUE': 'Due',
-                    'POSITION': 'Position',
-                    'ARRIVED': 'Arrived',
-                    'ESTIMATED_WAIT_TIME': 'Estimated Wait Time ',
-                    'MINUTE': 'minute',
-                    'SERVICE': 'Service',
-                    'NAME': 'Name',
-                    'MOBILE': 'Mobile',
-                    'EMAIL': 'Email',
-                    'NOTES': 'Notes',
-                    'TOGGLE_DROPDOWN_CARET_LBL': 'Toggle Dropdown',
-                    'BACK_BTN': 'Back',
-                    'FORWARD_BTN': 'Forward',
-                    'LEAVE_QUEUE_BTN': 'Leave Queue',
-                    'EDIT_CUSTOMER_BTN': 'Edit Customer',
-                    'CLOSE_BTN': 'Close'
-                },
-                'SERVER': {
-                    'SERVING': 'Serving',
-                    'APPOINTMENT_STARTED_AT': 'Appointment started at',
-                    'APPOINTMENT_DUE_TO_FINISH_AT': 'Appointment due to finish at',
-                    'EXTEND_APPOINTMENT': 'Extend Appointment',
-                    'TOGGLE_DROPDOWN_CARET_LBL': 'Toggle Dropdown',
-                    'IDLE': 'Idle',
-                    'NEXT_APPOINTMENT': 'Next appointment'
-                }
-            }
-        }
-    });
-}]);
-'use strict';
-
 angular.module('BBQueue.services').factory('AdminQueueService', function ($q, BBModel) {
     return {
         query: function query(params) {
@@ -944,6 +824,126 @@ angular.module('BBQueue.services').factory('PusherQueue', function ($sessionStor
         return PusherQueue;
     }();
 });
+'use strict';
+
+/**
+* @ngdoc overview
+* @name BBQueue.translations
+*
+* @description
+* Translations for the queue people module
+*/
+angular.module('BBQueue.translations').config(['$translateProvider', function ($translateProvider) {
+    return $translateProvider.translations('en', {
+        'SIDE_NAV_QUEUING': 'QUEUING',
+        'ADMIN_DASHBOARD': {
+            'SIDE_NAV': {
+                'QUEUE_PAGE': {
+                    'QUEUE': 'Concierge',
+                    'REPORT': 'Queue Reports',
+                    'BOOKING_REPORT': 'Booking Reports',
+                    'PERF_REPORT': 'Performance Reports',
+                    'MAP_REPORT': 'Map Reports',
+                    'LIST': 'Queue Display'
+                }
+            },
+            'QUEUE_PAGE': {
+                'NEXT_BOOKING_DIALOG_HEADING': 'Upcoming Appointment',
+                'NEXT_BOOKING_DIALOG_BODY': '{{name}} has an appointment at {{time}}. Are you sure they want to serve another customer beforehand?',
+                'NEW_QUEUER': 'New Queuer',
+                'ADD_CUSTOMER_FORM': {
+                    'TITLE': "Add Customer",
+                    'FIRST_NAME_LBL': "First Name *",
+                    'FIRST_NAME_PLACEHOLDER': "First Name",
+                    'LAST_NAME_LBL': "@:COMMON.TERMINOLOGY.LAST_NAME",
+                    'LAST_NAME_PLACEHOLDER': "@:COMMON.TERMINOLOGY.LAST_NAME",
+                    'MOBILE_LBL': "@:COMMON.TERMINOLOGY.MOBILE",
+                    'MOBILE_PLACEHOLDER': "@:COMMON.TERMINOLOGY.MOBILE",
+                    'NOTES_LBL': "Notes",
+                    'NOTES_PLACEHOLDER': "Notes",
+                    'MAKE_APPOINTMENT_BTN': "Make Appointment",
+                    'SERVE_NOW_BTN': "Serve Now",
+                    'ADD_TO_QUEUE_BTN': "Add to Queue"
+                },
+                'SERVE_NOW_MODAL': {
+                    'TITLE': 'Serve Now',
+                    'PICK_A_SERVICE_LBL': "Pick a service",
+                    'PICK_A_SERVER_LBL': "Pick a server",
+                    'DISMISS_BTN': 'Dismiss',
+                    'SERVE_NOW_BTN': "Serve Now"
+                },
+                'PICK_A_SERVICE_MODAL': {
+                    'TITLE': 'Pick a Service',
+                    'CANCEL_BTN': 'Cancel'
+                },
+                'FINISH_SERVING_OUTCOME_MODAL': {
+                    'EDIT_CUSTOMER_BTN': 'Edit Customer',
+                    'SAVE_AND_FINISH_SERVING_BTN': 'Save and Finish Serving'
+                },
+                'QUEUE_SERVER_ACTIONS': {
+                    'ACTIONS_BTN': 'Actions',
+                    'TOGGLE_DROPDOWN_CARET_LBL': 'Toggle Dropdown',
+                    'SET_FREE': 'Set Free',
+                    'SET_AS_AVAILABLE': 'Set as Available',
+                    'AVAILABLE_END_BREAK': 'Available / End Break',
+                    'END_SHIFT': 'End Shift',
+                    'ON_BREAK_FOR': 'On Break for',
+                    'MARK_AS_BUSY_FOR': 'Mark as busy for',
+                    'FINISH_SERVING_BTN': 'Finish Serving',
+                    'SERVE_BTN': 'Serve',
+                    'SERVE_NEXT_BTN': 'Serve Next',
+                    'MARK_ABSENT_BTN': 'Mark Absent'
+                },
+                'QUEUE_SERVER_LIST_ITEM': {
+                    'AVAILABLE': 'Available',
+                    'ON_BREAK_UNTIL': 'On break until',
+                    'ESTIMATED': 'estimated',
+                    'BUSY_UNTIL': 'Busy until',
+                    'SERVING': 'Serving',
+                    'SINCE': 'Since',
+                    'FINISH_ESTIMATE': 'Finish Estimate',
+                    'NEXT_APPOINTMENT': 'Next appointment'
+                },
+                'QUEUERS': {
+                    'ARRIVED_AT': 'Arrived at',
+                    'DUE_AT': 'Due at',
+                    'SERVICE': 'Service',
+                    'CHECK_IN': 'Check in',
+                    'NO_SHOW': 'No Show',
+                    'WALKED_OUT': 'Walked out'
+                },
+                'SELECTED_QUEUER': {
+                    'QUEUER': 'Queuer',
+                    'DUE': 'Due',
+                    'POSITION': 'Position',
+                    'ARRIVED': 'Arrived',
+                    'ESTIMATED_WAIT_TIME': 'Estimated Wait Time ',
+                    'MINUTE': 'minute',
+                    'SERVICE': 'Service',
+                    'NAME': 'Name',
+                    'MOBILE': 'Mobile',
+                    'EMAIL': 'Email',
+                    'NOTES': 'Notes',
+                    'TOGGLE_DROPDOWN_CARET_LBL': 'Toggle Dropdown',
+                    'BACK_BTN': 'Back',
+                    'FORWARD_BTN': 'Forward',
+                    'LEAVE_QUEUE_BTN': 'Leave Queue',
+                    'EDIT_CUSTOMER_BTN': 'Edit Customer',
+                    'CLOSE_BTN': 'Close'
+                },
+                'SERVER': {
+                    'SERVING': 'Serving',
+                    'APPOINTMENT_STARTED_AT': 'Appointment started at',
+                    'APPOINTMENT_DUE_TO_FINISH_AT': 'Appointment due to finish at',
+                    'EXTEND_APPOINTMENT': 'Extend Appointment',
+                    'TOGGLE_DROPDOWN_CARET_LBL': 'Toggle Dropdown',
+                    'IDLE': 'Idle',
+                    'NEXT_APPOINTMENT': 'Next appointment'
+                }
+            }
+        }
+    });
+}]);
 'use strict';
 
 var AddQueueCustomerController = function AddQueueCustomerController($scope, $log, AdminServiceService, AdminQueuerService, ModalForm, BBModel, $interval, $sessionStorage, $uibModal, $q, AdminBookingPopup, bbLocale) {
