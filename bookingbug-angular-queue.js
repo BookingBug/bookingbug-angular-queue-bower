@@ -946,138 +946,6 @@ angular.module('BBQueue.translations').config(['$translateProvider', function ($
 }]);
 'use strict';
 
-var AddQueueCustomerController = function AddQueueCustomerController($scope, $log, AdminServiceService, AdminQueuerService, ModalForm, BBModel, $interval, $sessionStorage, $uibModal, $q, AdminBookingPopup, bbLocale) {
-
-    var addQueuer = function addQueuer(form) {
-
-        var defer = $q.defer();
-        var service = form.service;
-        var person = form.server;
-        $scope.new_queuer.service_id = service.id;
-        $scope.new_queuer.service = service;
-        $scope.new_queuer.locale = bbLocale.getLocale();
-        var new_queuer = $scope.new_queuer;
-        $scope.$emit('addPendingQueuer', new_queuer);
-        resetQueuer();
-        service.$post('queuers', {}, new_queuer).then(function (response) {
-            var queuer = new BBModel.Admin.Queuer(response);
-            if (person) {
-                queuer.startServing(person).then(function () {
-                    defer.resolve();
-                }, function () {
-                    defer.reject();
-                });
-            } else {
-                defer.resolve();
-            }
-        });
-        return defer.promise;
-    };
-
-    var resetQueuer = function resetQueuer() {
-        $scope.new_queuer = {};
-        $scope.loading = false;
-    };
-
-    $scope.addToQueue = function () {
-        $scope.loading = true;
-        var modalInstance = $uibModal.open({
-            templateUrl: 'queue/pick_a_service.html',
-            scope: $scope,
-            controller: function controller($scope, $uibModalInstance) {
-
-                $scope.dismiss = function () {
-                    return $uibModalInstance.dismiss('cancel');
-                };
-
-                $scope.submit = function (form) {
-                    return $uibModalInstance.close(form);
-                };
-            }
-        });
-
-        modalInstance.result.then(addQueuer).finally(function () {
-            return $scope.loading = false;
-        });
-    };
-
-    $scope.availableServers = function () {
-        return _.filter($scope.servers, function (server) {
-            return server.attendance_status == 1;
-        });
-    };
-
-    $scope.serveCustomerNow = function () {
-        $scope.loading = true;
-        var modalInstance = $uibModal.open({
-            templateUrl: 'queue/serve_now.html',
-            resolve: {
-                services: function services() {
-                    return $scope.services;
-                },
-                servers: function servers() {
-                    return $scope.availableServers();
-                }
-            },
-            controller: function controller($scope, $uibModalInstance, services, servers) {
-
-                $scope.form = {};
-
-                $scope.services = services;
-
-                $scope.servers = servers;
-
-                $scope.dismiss = function () {
-                    return $uibModalInstance.dismiss('cancel');
-                };
-
-                $scope.submit = function (form) {
-                    return $uibModalInstance.close(form);
-                };
-            }
-        });
-
-        modalInstance.result.then(addQueuer).then(resetQueuer).finally(function () {
-            return $scope.loading = false;
-        });
-    };
-
-    $scope.makeAppointment = function (options) {
-        var defaultOptions = {
-            item_defaults: {
-                pick_first_time: true,
-                merge_people: true,
-                merge_resources: true,
-                date: moment().format('YYYY-MM-DD')
-            },
-            on_conflict: "cancel()",
-            company_id: $scope.company.id
-        };
-
-        options = _.extend(defaultOptions, options);
-
-        var popup = AdminBookingPopup.open(options);
-
-        popup.result.finally(resetQueuer);
-    };
-};
-
-angular.module('BBQueue.controllers').controller('bbQueueAddCustomer', AddQueueCustomerController);
-'use strict';
-
-angular.module('BBQueue.directives').directive('bbQueueAddCustomer', function () {
-    return {
-        controller: 'bbQueueAddCustomer',
-        templateUrl: 'queue/add_customer.html',
-        scope: {
-            services: '=',
-            servers: '=',
-            company: '='
-        }
-    };
-});
-'use strict';
-
 var QueueDashboardController = function QueueDashboardController($scope, $log, AdminServiceService, AdminQueuerService, ModalForm, BBModel, $interval, $sessionStorage, $uibModal, $q, AdminPersonService) {
 
     $scope.loading = true;
@@ -1392,6 +1260,138 @@ angular.module('BBQueue.directives').directive('bbQueueDashboard', function () {
         controller: 'bbQueueDashboard',
         link: function link(scope, element, attrs) {
             return scope.getSetup();
+        }
+    };
+});
+'use strict';
+
+var AddQueueCustomerController = function AddQueueCustomerController($scope, $log, AdminServiceService, AdminQueuerService, ModalForm, BBModel, $interval, $sessionStorage, $uibModal, $q, AdminBookingPopup, bbLocale) {
+
+    var addQueuer = function addQueuer(form) {
+
+        var defer = $q.defer();
+        var service = form.service;
+        var person = form.server;
+        $scope.new_queuer.service_id = service.id;
+        $scope.new_queuer.service = service;
+        $scope.new_queuer.locale = bbLocale.getLocale();
+        var new_queuer = $scope.new_queuer;
+        $scope.$emit('addPendingQueuer', new_queuer);
+        resetQueuer();
+        service.$post('queuers', {}, new_queuer).then(function (response) {
+            var queuer = new BBModel.Admin.Queuer(response);
+            if (person) {
+                queuer.startServing(person).then(function () {
+                    defer.resolve();
+                }, function () {
+                    defer.reject();
+                });
+            } else {
+                defer.resolve();
+            }
+        });
+        return defer.promise;
+    };
+
+    var resetQueuer = function resetQueuer() {
+        $scope.new_queuer = {};
+        $scope.loading = false;
+    };
+
+    $scope.addToQueue = function () {
+        $scope.loading = true;
+        var modalInstance = $uibModal.open({
+            templateUrl: 'queue/pick_a_service.html',
+            scope: $scope,
+            controller: function controller($scope, $uibModalInstance) {
+
+                $scope.dismiss = function () {
+                    return $uibModalInstance.dismiss('cancel');
+                };
+
+                $scope.submit = function (form) {
+                    return $uibModalInstance.close(form);
+                };
+            }
+        });
+
+        modalInstance.result.then(addQueuer).finally(function () {
+            return $scope.loading = false;
+        });
+    };
+
+    $scope.availableServers = function () {
+        return _.filter($scope.servers, function (server) {
+            return server.attendance_status == 1;
+        });
+    };
+
+    $scope.serveCustomerNow = function () {
+        $scope.loading = true;
+        var modalInstance = $uibModal.open({
+            templateUrl: 'queue/serve_now.html',
+            resolve: {
+                services: function services() {
+                    return $scope.services;
+                },
+                servers: function servers() {
+                    return $scope.availableServers();
+                }
+            },
+            controller: function controller($scope, $uibModalInstance, services, servers) {
+
+                $scope.form = {};
+
+                $scope.services = services;
+
+                $scope.servers = servers;
+
+                $scope.dismiss = function () {
+                    return $uibModalInstance.dismiss('cancel');
+                };
+
+                $scope.submit = function (form) {
+                    return $uibModalInstance.close(form);
+                };
+            }
+        });
+
+        modalInstance.result.then(addQueuer).then(resetQueuer).finally(function () {
+            return $scope.loading = false;
+        });
+    };
+
+    $scope.makeAppointment = function (options) {
+        var defaultOptions = {
+            item_defaults: {
+                pick_first_time: true,
+                merge_people: true,
+                merge_resources: true,
+                date: moment().format('YYYY-MM-DD')
+            },
+            on_conflict: "cancel()",
+            company_id: $scope.company.id
+        };
+
+        options = _.extend(defaultOptions, options);
+
+        var popup = AdminBookingPopup.open(options);
+
+        popup.result.finally(resetQueuer);
+    };
+};
+
+angular.module('BBQueue.controllers').controller('bbQueueAddCustomer', AddQueueCustomerController);
+'use strict';
+
+angular.module('BBQueue.directives').directive('bbQueueAddCustomer', function () {
+    return {
+        controller: 'bbQueueAddCustomer',
+        templateUrl: 'queue/add_customer.html',
+        scope: {
+            services: '=',
+            servers: '=',
+            company: '='
         }
     };
 });
